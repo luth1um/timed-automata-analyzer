@@ -13,7 +13,7 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
 
     for validation_fn in validation_fns {
         if let Err(err_msg) = validation_fn(ta) {
-            error_msgs.push(format!("{err_msg}"));
+            error_msgs.push(err_msg);
         }
     }
 
