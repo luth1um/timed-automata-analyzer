@@ -1,23 +1,33 @@
+use crate::ta::TimedAutomaton;
+use crate::validation::validate_input_ta;
 use wasm_bindgen::prelude::*;
+
+pub mod ta;
+mod util;
+mod validation;
 
 #[wasm_bindgen(js_name = findUnreachableLocations)]
 pub fn find_unreachable_locations(ta: TimedAutomaton) -> Vec<String> {
-    let mut result = Vec::new();
-    result.push(ta.name);
-    result
-}
-
-#[wasm_bindgen]
-pub struct TimedAutomaton {
-    name: String,
-}
-
-#[wasm_bindgen]
-impl TimedAutomaton {
-    #[wasm_bindgen(constructor)]
-    pub fn new(name: &str) -> Self {
-        TimedAutomaton {
-            name: String::from(name),
-        }
+    if let Err(msg) = validate_input_ta(&ta) {
+        wasm_bindgen::throw_str(&format!(
+            "The input TA failed some validation checks: {msg}"
+        ));
     }
+
+    // TODO: replace remainder of this function by actual reachability analysis
+    let mut result: Vec<String> = Vec::new();
+
+    for loc in ta.locations() {
+        result.push(loc.name().clone());
+    }
+
+    for clock in ta.clocks() {
+        result.push(clock.name().clone());
+    }
+
+    for sw in ta.switches() {
+        result.push(sw.action().clone());
+    }
+
+    result
 }
