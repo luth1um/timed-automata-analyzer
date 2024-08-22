@@ -1,26 +1,26 @@
 use crate::ta::TimedAutomaton;
 
-pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), String> {
+pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // TODO: add more input validations and write tests for validations
-    // - contains no locations
     // - all clocks used in invariants and guards are contained in set of clocks
     // - all locations used in guards (source and target) are contained in set of locations
     // - set of clock does not contain a clock name twice
     // - set of locations does not contain a location name twice
     // - invariant of initial location does not have lower bound (e.g., x > 2)
 
-    // TODO: can validation functions be stored in vec to have elegant for-each loop?
-
     let mut error_msgs: Vec<String> = Vec::new();
+    let validation_fns = vec![validate_init_loc_count, validate_at_least_one_loc];
 
-    if let Err(err_msg) = validate_init_loc_count(ta) {
-        error_msgs.push(format!("{err_msg}"));
+    for validation_fn in validation_fns {
+        if let Err(err_msg) = validation_fn(ta) {
+            error_msgs.push(format!("{err_msg}"));
+        }
     }
 
     if error_msgs.is_empty() {
         return Ok(());
     }
-    Err(error_msgs.join(" "))
+    Err(error_msgs)
 }
 
 fn validate_init_loc_count(ta: &TimedAutomaton) -> Result<(), String> {
@@ -47,6 +47,13 @@ fn validate_init_loc_count(ta: &TimedAutomaton) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_at_least_one_loc(ta: &TimedAutomaton) -> Result<(), String> {
+    if ta.locations().len() == 0 {
+        return Err(String::from("The TA does not have any locations."));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,7 +72,7 @@ mod tests {
         let result = validate_input_ta(&ta);
 
         // then
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -82,7 +89,9 @@ mod tests {
 
         // then
         match result {
-            Err(msg) => assert_eq!(msg, "The TA does not have an initial location."),
+            Err(msgs) => {
+                assert!(msgs.contains(&String::from("The TA does not have an initial location.")))
+            }
             _ => panic!("Expected an Err, got an Ok"),
         }
     }
@@ -103,14 +112,32 @@ mod tests {
 
         // then
         match result {
-            Err(msg) => assert_eq!(
-                msg,
-                format!(
-                    "The TA has multiple initial locations ({}, {}).",
-                    init0.name(),
-                    init1.name()
-                )
-            ),
+            Err(msgs) => assert!(msgs.contains(&format!(
+                "The TA has multiple initial locations ({}, {}).",
+                init0.name(),
+                init1.name()
+            ))),
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_input_ta_returns_err_when_ta_does_not_have_any_locations() {
+        // given
+        let ta = TimedAutomaton::new(
+            Box::from(Vec::new()),
+            Box::from(gen_clocks()),
+            Box::from(Vec::new()),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&String::from("The TA does not have any locations.")))
+            }
             _ => panic!("Expected an Err, got an Ok"),
         }
     }
