@@ -9,7 +9,8 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // - invariant of initial location does not have lower bound (e.g., x > 2)
 
     let mut error_msgs: Vec<String> = Vec::new();
-    let validation_fns = vec![validate_init_loc_count, validate_at_least_one_loc];
+    let validation_fns: Vec<fn(&TimedAutomaton) -> Result<(), String>> =
+        vec![validate_init_loc_count, validate_at_least_one_loc];
 
     for validation_fn in validation_fns {
         if let Err(err_msg) = validation_fn(ta) {
@@ -30,7 +31,7 @@ fn validate_init_loc_count(ta: &TimedAutomaton) -> Result<(), String> {
         .filter(|loc| (*loc).is_initial())
         .count();
     if init_loc_count == 0 {
-        return Err(String::from("The TA does not have an initial location.").into());
+        return Err(String::from("The TA does not have an initial location."));
     }
     if init_loc_count > 1 {
         let init_loc_names: Vec<String> = ta
