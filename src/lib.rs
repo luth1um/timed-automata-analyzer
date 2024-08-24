@@ -2,6 +2,7 @@ use crate::ta::TimedAutomaton;
 use crate::validation::validate_input_ta;
 use wasm_bindgen::prelude::*;
 
+mod difference_bound_matrix;
 pub mod ta;
 mod util;
 mod validation;

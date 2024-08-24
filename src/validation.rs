@@ -4,9 +4,9 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // TODO: add more input validations and write tests for validations
     // - all clocks used in invariants and guards are contained in set of clocks
     // - all locations used in guards (source and target) are contained in set of locations
-    // - set of clock does not contain a clock name twice
+    // - set of clocks does not contain a clock name twice
     // - set of locations does not contain a location name twice
-    // - invariant of initial location does not have lower bound (e.g., x > 2)
+    // - invariants of all locations are downward closed
 
     let mut error_msgs: Vec<String> = Vec::new();
     let validation_fns: Vec<fn(&TimedAutomaton) -> Result<(), String>> =
