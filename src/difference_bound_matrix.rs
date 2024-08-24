@@ -1,6 +1,9 @@
-use crate::ta::clock_constraint::clause::ClockComparator;
+use crate::ta::clock::Clock;
+use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
+use crate::ta::clock_constraint::ClockConstraint;
+use std::cmp;
 
-const UNBOUNDED_ENTRY: u32 = u32::MAX;
+const UNBOUNDED_ENTRY: i32 = i32::MAX;
 
 /// Efficient representation of clock constraints.
 /// See "Timed Automata: Semantics, Algorithms and Tools" by Bengtsson and Yi for more information
@@ -12,23 +15,25 @@ pub struct DifferenceBoundMatrix {
     // - for efficiency reasons, the two-dimensional matrix is stored in a one-dimensional vector
     // - entries are accessed as follows: entry(row,column) = row * size + column, where size is the
     //   number of rows/columns (e.g., 3 for a 3x3 matrix)
-    // - unbounded entries (infinity) are stored as u32::MAX
+    // - unbounded entries (infinity) are stored as i32::MAX
     // - strictness of the bound of an entry is stored in the least significant bit of an entry
     // - strict bounds (i.e., "<") are stored as an unset bit (i.e., 0)
     // - non-strict bounds (i.e., "<=") are stored as a set bit (i.e., 1)
     // - due to the strictness encoding, the numeric value of the entry is shifted by one bit
-    entries: Vec<u32>,
+    entries: Vec<i32>,
     size: usize,
 }
 
 impl DifferenceBoundMatrix {
-    /// Constructs a new square DBM with dimensions `size x size`.
-    pub fn with_size(size: usize) -> DifferenceBoundMatrix {
-        // TODO: Do I need this? It might be better to have something like from_clock_constraint(cc, all_clocks)
+    /// Constructs the DBM for the initial symbolic state.
+    pub fn for_initial_symbolic_state(number_of_clocks: usize) -> DifferenceBoundMatrix {
+        let size = number_of_clocks + 1; // + 1 for reference clock "zero"
+        let leq_0 = encode_dbm_entry(0, ClockComparator::LEQ);
         DifferenceBoundMatrix {
-            entries: Vec::with_capacity(size * size),
+            entries: vec![leq_0; size * size],
             size,
         }
+        // TODO: write tests?
     }
 
     /// Returns the entry at `(row, column)` where the top left element of the matrix has index
@@ -36,7 +41,7 @@ impl DifferenceBoundMatrix {
     ///
     /// # Panics
     /// Panics in case of an out-of-bounds access.
-    fn get(&self, row: usize, column: usize) -> u32 {
+    fn get(&self, row: usize, column: usize) -> i32 {
         if row > self.size - 1 || column > self.size - 1 {
             panic!(
                 "Tried to get entry ({}, {}) in a matrix with dimensions {} x {}",
@@ -60,7 +65,7 @@ impl DifferenceBoundMatrix {
     ///
     /// # Panics
     /// Panics in case of an out-of-bounds access.
-    fn set(&mut self, row: usize, column: usize, val: u32) {
+    fn set(&mut self, row: usize, column: usize, val: i32) {
         if row > self.size - 1 || column > self.size - 1 {
             panic!(
                 "Tried to set entry ({}, {}) in a matrix with dimensions {} x {}",
@@ -71,11 +76,176 @@ impl DifferenceBoundMatrix {
         let translated_pos = row * self.size + column;
         self.entries[translated_pos] = val;
     }
+
+    /// Applies the `and` operator with the provided clock constraint to the DBM. The set of all
+    /// clocks is needed to determine each clock's position in the DBM.
+    ///
+    /// # Error Return
+    /// This method returns an error if and only if the resulting DBM would be unsatisfiable.
+    ///
+    /// # Panics
+    /// Panics if the set of all clocks is not sorted by name. This is to ensure that the DBM
+    /// entries are always set to the correct field.
+    pub fn and(&mut self, cc: &ClockConstraint, all_clocks_sorted: &Vec<Clock>) -> Result<(), ()> {
+        // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
+        for clause in cc.clauses() {
+            self.and_clause(clause, all_clocks_sorted)?;
+        }
+
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        Ok(())
+        // TODO: write tests
+    }
+
+    /// Applies the `and` operator with the provided clause to the DBM. The resulting DBM is
+    /// canonical if the input DBM was canonical.
+    ///
+    /// The set of all clocks is needed to determine each clock's position in the DBM. For more
+    /// information, see Algorithm 8 of "Timed Automata: Semantics, Algorithms and Tools" by
+    /// Bengtsson and Yi.
+    ///
+    /// # Error Return
+    /// This method returns an error if and only if the resulting DBM would be unsatisfiable.
+    fn and_clause(&mut self, clause: &Clause, all_clocks_sorted: &Vec<Clock>) -> Result<(), ()> {
+        // DBMs only have < and <= in entries, i.e., > and >= need to be "translated"
+        let (row, column) = match clause.op() {
+            ClockComparator::GEQ | ClockComparator::GREATER => todo!(),
+            ClockComparator::LEQ | ClockComparator::LESSER => {
+                (find_clock_pos_in_dbm(&clause.lhs(), &all_clocks_sorted), 0)
+            }
+        };
+        let encoded_value = match clause.op() {
+            ClockComparator::GEQ => todo!(),
+            ClockComparator::GREATER => todo!(),
+            op => encode_dbm_entry(clause.rhs() as i32, op),
+        };
+
+        // check satisfiability
+        if self.get(column, row) + encoded_value < 0 {
+            return Err(());
+        }
+
+        // if current clause is less strict -> do nothing
+        if encoded_value >= self.get(row, column) {
+            return Ok(());
+        }
+
+        // set new value and compute canonical form
+        self.set(row, column, encoded_value);
+        for i in 0..self.size {
+            for j in 0..self.size {
+                let d_ix = self.get(i, row);
+                let d_xj = self.get(row, j);
+                if d_ix + d_xj < self.get(i, j) {
+                    self.set(i, j, d_ix + d_xj);
+                }
+                let d_iy = self.get(i, column);
+                let d_yj = self.get(column, j);
+                if d_iy + d_yj < self.get(i, j) {
+                    self.set(i, j, d_iy + d_yj);
+                }
+            }
+        }
+
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        Ok(())
+        // TODO: write tests
+    }
+
+    /// Applies the `up` operation to the DBM. The resulting DBM is canonical if the input DBM was
+    /// canonical. For more information, see Algorithm 6 of "Timed Automata: Semantics, Algorithms
+    /// and Tools" by Bengtsson and Yi.
+    pub fn up(&mut self) {
+        // start at index 1 because index 0 is special clock "zero"
+        for i in 1..self.size {
+            self.set(i, 0, UNBOUNDED_ENTRY);
+        }
+
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        // TODO: write tests
+    }
+
+    /// Applies the `reset` operator to the DBM. The resulting DBM is canonical if the input DBM was
+    /// canonical.
+    ///
+    /// The set of all clocks is needed to determine each clock's position in the DBM. For more
+    /// information, see Algorithm 10 of "Timed Automata: Semantics, Algorithms and Tools" by
+    /// Bengtsson and Yi.
+    ///
+    /// # Panics
+    /// Panics if the set of all clocks is not sorted by name. This is to ensure that the DBM
+    /// entries are always set to the correct field.
+    pub fn reset(&mut self, reset: &Vec<Clock>, all_clocks_sorted: &Vec<Clock>) {
+        // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
+        for clock in reset {
+            let pos_in_dbm = find_clock_pos_in_dbm(&clock, all_clocks_sorted);
+            let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
+            for i in 0..self.size {
+                if i == pos_in_dbm {
+                    continue;
+                }
+                let val_xi = add_encoded_dbm_entries(leq_0_enc, self.get(0, i));
+                self.set(pos_in_dbm, i, val_xi);
+                let val_ix = add_encoded_dbm_entries(self.get(i, 0), leq_0_enc);
+                self.set(i, pos_in_dbm, val_ix);
+            }
+        }
+
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        // TODO: write tests
+    }
+
+    /// Applies k-normalization to the DBM. The resulting DBM is canonical if the input DBM was
+    /// canonical. For more information, see Algorithm 13 of "Timed Automata: Semantics, Algorithms
+    /// and Tools" by Bengtsson and Yi.
+    pub fn k_norm(&mut self, k: i32) {
+        let k_leq_enc = encode_dbm_entry(k, ClockComparator::LEQ);
+        let minus_k_lesser_enc = encode_dbm_entry(-k, ClockComparator::LESSER);
+
+        for i in 0..self.size {
+            for j in 0..self.size {
+                let d_ij = self.get(i, j);
+
+                if i == j || d_ij == UNBOUNDED_ENTRY {
+                    continue;
+                }
+
+                if d_ij > k_leq_enc {
+                    self.set(i, j, k_leq_enc);
+                } else if d_ij < minus_k_lesser_enc {
+                    self.set(i, j, minus_k_lesser_enc);
+                }
+            }
+        }
+
+        self.close(); // compute canonical form
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        // TODO: write tests
+    }
+
+    /// Computes the canonical version of a DBM by using Floyd's algorithm for shortest paths. For
+    /// more information, see Algorithm 2 of "Timed Automata: Semantics, Algorithms and Tools" by
+    /// Bengtsson and Yi.
+    fn close(&mut self) {
+        for k in 0..self.size {
+            for i in 0..self.size {
+                for j in 0..self.size {
+                    let d_ij = self.get(i, j);
+                    let d_ik = self.get(i, k);
+                    let d_kj = self.get(k, j);
+                    self.set(i, j, cmp::min(d_ij, add_encoded_dbm_entries(d_ik, d_kj)));
+                }
+            }
+        }
+
+        panic_if_clock_diff_to_self_is_not_leq_0(self);
+        // TODO: write tests
+    }
 }
 
 /// Encodes a DBM entry into an efficient representation. See "Timed Automata: Semantics,
 /// Algorithms and Tools" by Bengtsson and Yi for details.
-fn encode_dbm_entry(val: u32, clock_comparator: ClockComparator) -> u32 {
+fn encode_dbm_entry(val: i32, clock_comparator: ClockComparator) -> i32 {
     match clock_comparator {
         ClockComparator::LESSER => val << 1,
         ClockComparator::LEQ => (val << 1) + 1,
@@ -88,9 +258,19 @@ fn encode_dbm_entry(val: u32, clock_comparator: ClockComparator) -> u32 {
     }
 }
 
+fn decode_dbm_entry(encoded_entry: i32) -> (i32, ClockComparator) {
+    let comparator = if encoded_entry & 1 == 1 {
+        ClockComparator::LEQ
+    } else {
+        ClockComparator::LESSER
+    };
+    (encoded_entry >> 1, comparator)
+    // TODO: write tests
+}
+
 /// Performs addition of encoded DBM entries directly on the encoding. See "Timed Automata:
 /// Semantics, Algorithms and Tools" by Bengtsson and Yi for details.
-fn add_encoded_dbm_entries(first: u32, second: u32) -> u32 {
+fn add_encoded_dbm_entries(first: i32, second: i32) -> i32 {
     // See Algorithm 17 in "Timed Automata: Semantics, Algorithms and Tools" by Bengtsson and Yi
     if first == UNBOUNDED_ENTRY || second == UNBOUNDED_ENTRY {
         return UNBOUNDED_ENTRY;
@@ -98,14 +278,39 @@ fn add_encoded_dbm_entries(first: u32, second: u32) -> u32 {
     first + second - ((first & 1) | (second & 1))
 }
 
+fn find_clock_pos_in_dbm(clock: &Clock, all_clocks: &Vec<Clock>) -> usize {
+    for i in 0..all_clocks.len() {
+        if *clock == all_clocks[i] {
+            return i + 1; // + 1 because of special clock "zero" in DBMs
+        }
+    }
+    panic!("Clock {} not contained in {:?}", clock, all_clocks);
+}
+
+/// Panics if the difference of any clock to itself (i.e., all entries `(i, i)`) is not `(0, <=)`.
+fn panic_if_clock_diff_to_self_is_not_leq_0(dbm: &DifferenceBoundMatrix) {
+    let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
+    for i in 0..dbm.size {
+        if dbm.get(i, i) != leq_0_enc {
+            let (val, comp) = decode_dbm_entry(dbm.get(i, i));
+            let comp_str = match comp {
+                ClockComparator::LESSER => "<",
+                ClockComparator::LEQ => "<=",
+                ClockComparator::GEQ => ">=",
+                ClockComparator::GREATER => ">",
+            };
+            panic!(
+                "Entry at ({}, {}) should be (0, <=), but entry is ({}, {})",
+                i, i, val, comp_str
+            );
+        }
+    }
+    // TODO: write tests
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn with_size_returns_dbm_with_correct_size_when_called() {
-        // TODO: implement (if the method is actually needed)
-    }
 
     #[test]
     fn get_works_when_accessing_top_left_element() {
@@ -113,7 +318,7 @@ mod tests {
         let size = 3;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; size * size],
-            size
+            size,
         };
         let val = 42;
         dbm.entries[0] = val;
@@ -131,7 +336,7 @@ mod tests {
         let size = 3;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; size * size],
-            size
+            size,
         };
         let val = 42;
         dbm.entries[size * size - 1] = val;
@@ -148,7 +353,10 @@ mod tests {
     fn get_panics_when_access_is_out_of_bounds() {
         // given
         let size = 3;
-        let dbm = DifferenceBoundMatrix::with_size(3);
+        let dbm = DifferenceBoundMatrix {
+            entries: vec![1; size * size],
+            size,
+        };
 
         // when / then
         dbm.get(size + 1, size + 1);
@@ -160,7 +368,7 @@ mod tests {
         let size = 3;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; size * size],
-            size
+            size,
         };
 
         let row = 1;
@@ -181,7 +389,7 @@ mod tests {
         let size = 3;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; size * size],
-            size
+            size,
         };
         let val = 42;
 
@@ -198,7 +406,7 @@ mod tests {
         let size = 3;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; size * size],
-            size
+            size,
         };
         let val = 42;
 
@@ -216,7 +424,7 @@ mod tests {
         let len_init = size * size;
         let mut dbm = DifferenceBoundMatrix {
             entries: vec![1; len_init],
-            size
+            size,
         };
 
         // when
@@ -231,7 +439,10 @@ mod tests {
     fn set_panics_when_access_is_out_of_bounds() {
         // given
         let size = 3;
-        let mut dbm = DifferenceBoundMatrix::with_size(3);
+        let mut dbm = DifferenceBoundMatrix {
+            entries: vec![1; size * size],
+            size,
+        };
 
         // when / then
         dbm.set(size + 1, size + 1, 42);
@@ -261,6 +472,20 @@ mod tests {
 
         // then
         assert_eq!(result, (val << 1) + 1);
+    }
+
+    #[test]
+    fn encode_dbm_entry_correctly_encodes_entry_when_value_is_negative() {
+        // given
+        let val = -42;
+        let comp = ClockComparator::LEQ;
+
+        // when
+        let result = encode_dbm_entry(val, comp);
+
+        // then
+        assert_eq!(result, (val << 1) + 1);
+        assert!(result < 0);
     }
 
     #[test]
@@ -340,5 +565,31 @@ mod tests {
 
         // then
         assert_eq!(result, UNBOUNDED_ENTRY);
+    }
+
+    #[test]
+    fn find_clock_pos_in_dbm_finds_correct_position_when_vec_contains_clock() {
+        // given
+        let clock_name = "x";
+        let clock = Clock::new(clock_name);
+        let clocks = vec![clock.clone()];
+
+        // when
+        let result = find_clock_pos_in_dbm(&clock, &clocks);
+
+        // then
+        assert_eq!(result, 1); // "1" because "0" is special clock "zero"
+    }
+
+    #[test]
+    #[should_panic]
+    fn find_clock_pos_in_dbm_panics_when_vec_does_not_contain_clock() {
+        // given
+        let clock_name = "x";
+        let clock = Clock::new(clock_name);
+        let clocks = vec![Clock::new(&(String::from(clock_name) + "other"))];
+
+        // when / then
+        find_clock_pos_in_dbm(&clock, &clocks);
     }
 }

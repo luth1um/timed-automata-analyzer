@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
@@ -19,6 +21,12 @@ impl Clock {
 impl Clock {
     pub fn name(&self) -> &String {
         &self.name
+    }
+}
+
+impl Display for Clock {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
 
