@@ -4,7 +4,6 @@ use crate::ta::clock::Clock;
 use crate::ta::location::Location;
 use crate::ta::TimedAutomaton;
 use std::collections::HashSet;
-use std::iter;
 
 pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
     // setup
@@ -35,10 +34,11 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
             None => panic!("No symbolic state found even though vec is not empty"),
         };
 
-        let guard_states = next_states_for_switches(&current, &ta, &clocks_sorted, k);
-        let loc_state = next_state_for_same_location(&current, &ta, &clocks_sorted, k);
-
-        for state in iter::once(loc_state).chain(guard_states) {
+        let mut computed_states = next_states_for_switches(&current, &ta, &clocks_sorted, k);
+        if let Some(loc_state) = next_state_for_same_location(&current, &ta, &clocks_sorted, k) {
+            computed_states.push(loc_state);
+        }
+        for state in computed_states {
             if visited_states.insert(state.clone()) {
                 locations_not_visited.remove(state.location());
                 states_to_process.push(state);
@@ -68,14 +68,20 @@ fn next_states_for_switches(
         .for_each(|sw| {
             let mut next_zone = current_state.zone().clone();
             if let Some(guard) = sw.guard() {
-                next_zone.and(guard, all_clocks_sorted);
+                if let None = next_zone.and(guard, all_clocks_sorted) {
+                    // result unsatisfiable
+                    return;
+                }
             }
             next_zone.reset(sw.reset(), all_clocks_sorted);
             if let Some(invariant) = sw.target().invariant() {
-                next_zone.and(invariant, all_clocks_sorted);
+                if let None = next_zone.and(invariant, all_clocks_sorted) {
+                    // result unsatisfiable
+                    return;
+                }
             }
             next_zone.k_norm(highest_constant_in_ta);
-            let next_state = SymbolicState::new(current_state.location(), next_zone);
+            let next_state = SymbolicState::new(sw.target().name(), next_zone);
             next_states.push(next_state);
         });
 
@@ -88,7 +94,7 @@ fn next_state_for_same_location(
     ta: &TimedAutomaton,
     all_clocks_sorted: &Vec<Clock>,
     highest_constant_in_ta: i32,
-) -> SymbolicState {
+) -> Option<SymbolicState> {
     let loc: &Location = match ta
         .locations()
         .iter()
@@ -105,10 +111,103 @@ fn next_state_for_same_location(
     let mut next_zone = current_state.zone().clone();
     next_zone.up();
     if let Some(invariant) = loc.invariant() {
-        next_zone.and(&invariant, &all_clocks_sorted);
+        next_zone.and(&invariant, &all_clocks_sorted)?;
     }
     next_zone.k_norm(highest_constant_in_ta);
 
-    SymbolicState::new(current_state.location(), next_zone)
+    Some(SymbolicState::new(current_state.location(), next_zone))
     // TODO: write tests
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
+    use crate::ta::clock_constraint::ClockConstraint;
+    use crate::ta::switch::Switch;
+
+    #[test]
+    fn find_unreachable_locations_returns_empty_when_ta_only_has_single_location() {
+        // given
+        let ta = TimedAutomaton::new(
+            Box::from(vec![Location::new("init", true, None)]),
+            Box::from(vec![]),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_unreachable_locations_returns_empty_when_ta_only_has_single_location_with_invariant() {
+        // given
+        let clock = Clock::new("x");
+        let clause = Clause::new(&clock, ClockComparator::LEQ, 42);
+        let invariant = ClockConstraint::new(Box::from(vec![clause]));
+        let ta = TimedAutomaton::new(
+            Box::from(vec![Location::new("init", true, Some(invariant))]),
+            Box::from(vec![clock]),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_unreachable_locations_returns_empty_when_ta_has_multiple_reachable_locations() {
+        // given
+        let clock = Clock::new("x");
+        let clause = Clause::new(&clock, ClockComparator::LEQ, 42);
+        let invariant = ClockConstraint::new(Box::from(vec![clause]));
+        let loc0 = Location::new("init", true, Some(invariant.clone()));
+        let loc1 = Location::new("other", false, Some(invariant));
+        let sw = Switch::new(&loc0, None, "action", Box::from(vec![]), &loc1);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc0, loc1]),
+            Box::from(vec![clock]),
+            Box::from(vec![sw]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_unreachable_locations_returns_loc_when_loc_is_unreachable_due_to_constraints() {
+        // given
+        let clock = Clock::new("x");
+
+        let clause_leq42 = Clause::new(&clock, ClockComparator::LEQ, 42);
+        let invariant = ClockConstraint::new(Box::from(vec![clause_leq42]));
+
+        let clause_g42 = Clause::new(&clock, ClockComparator::GREATER, 42);
+        let guard = ClockConstraint::new(Box::from(vec![clause_g42]));
+
+        let loc0 = Location::new("init", true, None);
+        let loc1 = Location::new("other", false, Some(invariant));
+        let sw = Switch::new(&loc0, Some(guard), "action", Box::from(vec![]), &loc1);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc0, loc1.clone()]),
+            Box::from(vec![clock]),
+            Box::from(vec![sw]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first(), Some(loc1.name()));
+    }
 }
