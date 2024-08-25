@@ -10,8 +10,6 @@ mod validation;
 
 #[wasm_bindgen(js_name = findUnreachableLocations)]
 pub fn find_unreachable_locations(ta: TimedAutomaton) -> Vec<String> {
-    panic!("test");
-
     if let Err(msgs) = validate_input_ta(&ta) {
         wasm_bindgen::throw_str(&format!(
             "The input TA failed some validation checks: {}",
