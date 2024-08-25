@@ -41,6 +41,65 @@ impl TimedAutomaton {
     pub fn switches(&self) -> &Vec<Switch> {
         &self.switches
     }
+
+    /// Finds the initial location of the TA. Please be aware that the initial location is not
+    /// explicitly stored, such that calling this method repeatedly would cause computations for
+    /// every call.
+    ///
+    /// # Panics
+    /// This method panics if the number of initial locations of the TA is not exactly 1.
+    pub fn find_initial_location(&self) -> &Location {
+        let marked_init: Vec<&Location> = self
+            .locations()
+            .iter()
+            .filter(|loc| (*loc).is_initial())
+            .collect();
+        if marked_init.len() > 1 {
+            panic!(
+                "Found multiple initial locations {:?} although there should only be 1",
+                marked_init
+            );
+        }
+        match marked_init.first() {
+            Some(loc) => *loc,
+            None => panic!(
+                "Did not find any initial location in {:?}",
+                self.locations()
+            ),
+        }
+    }
+
+    /// Finds the highest constant used in any clock constraint of the TA. This constant is required
+    /// for k-normalization. Please be aware that the highest constant is not explicitly stored,
+    /// such that calling this method repeatedly would cause computations for every call.
+    ///
+    /// If the TA does not contain any clock constraint, this method returns `0`.
+    pub fn find_highest_constant_in_any_clause(&self) -> i32 {
+        let invariants = self
+            .locations
+            .iter()
+            .map(|loc| loc.invariant())
+            .filter_map(|cc| cc.clone());
+        let guards = self
+            .switches
+            .iter()
+            .map(|sw| sw.guard())
+            .filter_map(|cc| cc.clone());
+
+        let mut all_constants: Vec<u32> = invariants
+            .chain(guards)
+            .map(|cc| cc.clauses().clone())
+            .flat_map(|clauses| clauses)
+            .map(|clause| clause.rhs())
+            .collect();
+        all_constants.sort_unstable();
+
+        match all_constants.last() {
+            Some(k) => *k as i32,
+            None => 0,
+        }
+        // TODO: write tests
+    }
 }
 
 impl PartialEq<Self> for TimedAutomaton {
@@ -75,6 +134,23 @@ mod tests {
         assert_eq!(result.locations, locs);
         assert_eq!(result.clocks, clocks);
         assert_eq!(result.switches, switches);
+    }
+
+    #[test]
+    fn find_initial_location_returns_initial_location_when_called_on_ta_with_single_init_loc() {
+        // given
+        let init_loc = gen_loc_source();
+        let ta = TimedAutomaton::new(
+            Box::from(vec![init_loc.clone(), gen_loc_target()]),
+            Box::from(gen_clocks()),
+            Box::from(vec![gen_switch()]),
+        );
+
+        // when
+        let result = ta.find_initial_location();
+
+        // then
+        assert_eq!(*result, init_loc);
     }
 
     #[test]

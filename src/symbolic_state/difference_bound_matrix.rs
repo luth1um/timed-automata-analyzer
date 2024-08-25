@@ -8,7 +8,7 @@ const UNBOUNDED_ENTRY: i32 = i32::MAX;
 /// Efficient representation of clock constraints.
 /// See "Timed Automata: Semantics, Algorithms and Tools" by Bengtsson and Yi for more information
 /// on DBMs.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct DifferenceBoundMatrix {
     // Implementation details:
     // - see "Timed Automata: Semantics, Algorithms and Tools" by Bengtsson and Yi for more

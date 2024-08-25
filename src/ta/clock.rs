@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Ord, PartialOrd)]
 pub struct Clock {
     name: String,
 }
