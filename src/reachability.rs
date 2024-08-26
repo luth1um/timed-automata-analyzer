@@ -31,7 +31,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
     while !states_to_process.is_empty() {
         let current = match states_to_process.pop() {
             Some(state) => state,
-            None => panic!("No symbolic state found even though vec is not empty"),
+            None => panic!("No symbolic state found even though vec should not be empty"),
         };
 
         let mut computed_states = next_states_for_switches(&current, &ta, &clocks_sorted, k);
@@ -51,7 +51,6 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
         .iter()
         .map(|name| name.clone())
         .collect()
-    // TODO: write tests
 }
 
 fn next_states_for_switches(
@@ -209,5 +208,98 @@ mod tests {
         // then
         assert_eq!(result.len(), 1);
         assert_eq!(result.first(), Some(loc1.name()));
+    }
+
+    #[test]
+    fn find_unreachable_locations_marks_loc_as_reachable_when_only_reachable_with_reset() {
+        // given
+        let clock_x = Clock::new("x");
+        let clock_y = Clock::new("y");
+
+        let clause_x_g42 = Clause::new(&clock_x, ClockComparator::GREATER, 42);
+        let guard0 = ClockConstraint::new(Box::from(vec![clause_x_g42]));
+
+        let clause_y_leq42 = Clause::new(&clock_y, ClockComparator::LEQ, 42);
+        let guard1 = ClockConstraint::new(Box::from(vec![clause_y_leq42]));
+
+        let loc0 = Location::new("loc0", true, None);
+        let loc1 = Location::new("loc1", false, None);
+        let loc2 = Location::new("loc2", false, None);
+
+        let sw0 = Switch::new(
+            &loc0,
+            Some(guard0),
+            "a0",
+            Box::from(vec![clock_y.clone()]),
+            &loc1,
+        );
+        let sw1 = Switch::new(&loc1, Some(guard1), "a1", Box::from(vec![]), &loc2);
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc0, loc1, loc2]),
+            Box::from(vec![clock_x, clock_y]),
+            Box::from(vec![sw0, sw1]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_unreachable_locations_terminates_when_k_normalization_is_necessary() {
+        // given
+        // (Fig. 4 from "Timed Automata: Semantics, Algorithms and Tools" by Bengtsson and Yi)
+        let clock_x = Clock::new("x");
+        let clock_y = Clock::new("y");
+
+        let clause_x_leq10 = Clause::new(&clock_x, ClockComparator::LEQ, 10);
+        let invariant_loop = ClockConstraint::new(Box::from(vec![clause_x_leq10.clone()]));
+
+        let clause_x_geq10 = Clause::new(&clock_x, ClockComparator::GEQ, 10);
+        let guard_ll = ClockConstraint::new(Box::from(vec![clause_x_leq10, clause_x_geq10]));
+
+        let clause_y_geq20 = Clause::new(&clock_y, ClockComparator::GEQ, 20);
+        let guard_le = ClockConstraint::new(Box::from(vec![clause_y_geq20]));
+
+        let loc_start = Location::new("start", true, None);
+        let loc_loop = Location::new("loop", false, Some(invariant_loop));
+        let loc_end = Location::new("end", false, None);
+
+        let sw_sl = Switch::new(
+            &loc_start,
+            None,
+            "sl",
+            Box::from(vec![clock_x.clone(), clock_y.clone()]),
+            &loc_loop,
+        );
+        let sw_ll = Switch::new(
+            &loc_loop,
+            Some(guard_ll),
+            "ll",
+            Box::from(vec![clock_x.clone()]),
+            &loc_loop,
+        );
+        let sw_le = Switch::new(
+            &loc_loop,
+            Some(guard_le),
+            "le",
+            Box::from(vec![clock_x.clone(), clock_y.clone()]),
+            &loc_end,
+        );
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc_start, loc_loop, loc_end]),
+            Box::from(vec![clock_x, clock_y]),
+            Box::from(vec![sw_sl, sw_ll, sw_le]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
     }
 }
