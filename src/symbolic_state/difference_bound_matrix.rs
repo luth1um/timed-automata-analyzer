@@ -34,7 +34,6 @@ impl DifferenceBoundMatrix {
             entries: vec![leq_0; size * size],
             size,
         }
-        // TODO: write tests?
     }
 
     /// Returns the entry at `(row, column)` where the top left element of the matrix has index
@@ -95,7 +94,6 @@ impl DifferenceBoundMatrix {
 
         panic_if_clock_diffs_to_self(self);
         Some(())
-        // TODO: write tests
     }
 
     /// Applies the `and` operator with the provided clause to the DBM. The resulting DBM is
@@ -125,6 +123,7 @@ impl DifferenceBoundMatrix {
         // check satisfiability
         // NOTE: Algorithm 8 in paper says "<", but "<=" is correct in next line
         if add_encoded_dbm_entries(self.get(column, row), encoded_value) <= 0 {
+            self.set(0, 0, encode_dbm_entry(-1, ClockComparator::LEQ));
             return None;
         }
 
@@ -154,7 +153,6 @@ impl DifferenceBoundMatrix {
 
         panic_if_clock_diffs_to_self(self);
         Some(())
-        // TODO: write tests
     }
 
     /// Applies the `up` operation to the DBM. The resulting DBM is canonical if the input DBM was
@@ -167,7 +165,6 @@ impl DifferenceBoundMatrix {
         }
 
         panic_if_clock_diffs_to_self(self);
-        // TODO: write tests
     }
 
     /// Applies the `reset` operator to the DBM. The resulting DBM is canonical if the input DBM was
@@ -270,7 +267,6 @@ fn decode_dbm_entry(encoded_entry: i32) -> (i32, ClockComparator) {
         ClockComparator::LESSER
     };
     (encoded_entry >> 1, comparator)
-    // TODO: write tests
 }
 
 /// Performs addition of encoded DBM entries directly on the encoding. See "Timed Automata:
@@ -310,7 +306,6 @@ fn panic_if_clock_diffs_to_self(dbm: &DifferenceBoundMatrix) {
             );
         }
     }
-    // TODO: write tests
 }
 
 #[cfg(test)]
@@ -331,62 +326,19 @@ mod tests {
     }
 
     #[test]
-    fn and_clause_returns_works_correctly_when_result_is_satisfiable_with_geq_leq() {
+    fn for_initial_symbolic_state_creates_vector_with_all_entries_set_to_leq_0() {
         // given
-        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
-        dbm.up();
-        // following line is x >= 5 as it is set in first row for comparison with clock zero
-        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LEQ));
-
-        let clock = Clock::new("x");
-        let clocks = vec![clock.clone()];
-        let val = 5;
-        let op = ClockComparator::LEQ;
-        let clause = Clause::new(&clock, op, val);
+        let size = 3;
+        let leq_0_encoded = encode_dbm_entry(0, ClockComparator::LEQ);
 
         // when
-        let result = dbm.and_clause(&clause, &clocks);
+        let result = DifferenceBoundMatrix::for_initial_symbolic_state(size);
 
         // then
-        assert!(result.is_some());
-        let added_constraint_decoded = decode_dbm_entry(dbm.get(1, 0));
-        assert_eq!(added_constraint_decoded, (val as i32, op));
-    }
-
-    #[test]
-    fn and_clause_returns_none_when_result_is_unsatisfiable_with_greater_lesser() {
-        // given
-        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
-        // following line is x > 5 as it is set in first row for comparison with clock zero
-        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LESSER));
-
-        let clock = Clock::new("x");
-        let clocks = vec![clock.clone()];
-        let clause = Clause::new(&clock, ClockComparator::LESSER, 5);
-
-        // when
-        let result = dbm.and_clause(&clause, &clocks);
-
-        // then
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn and_clause_returns_none_when_result_is_unsatisfiable_with_geq_lesser() {
-        // given
-        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
-        // following line is x >= 5 as it is set in first row for comparison with clock zero
-        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LEQ));
-
-        let clock = Clock::new("x");
-        let clocks = vec![clock.clone()];
-        let clause = Clause::new(&clock, ClockComparator::LESSER, 5);
-
-        // when
-        let result = dbm.and_clause(&clause, &clocks);
-
-        // then
-        assert!(result.is_none());
+        assert!(!result.entries.is_empty());
+        for entry in result.entries {
+            assert_eq!(entry, leq_0_encoded);
+        }
     }
 
     #[test]
@@ -526,6 +478,362 @@ mod tests {
     }
 
     #[test]
+    fn and_works_correctly_when_input_has_single_clause() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        dbm.up();
+
+        let val = 5;
+        let op = ClockComparator::LESSER;
+        let clause = Clause::new(&clock, op, val);
+        let cc = ClockConstraint::new(Box::from(vec![clause]));
+
+        let mut dbm_expected = dbm.clone();
+        dbm_expected.set(1, 0, encode_dbm_entry(val as i32, op));
+
+        // when
+        let result = dbm.and(&cc, &clocks);
+
+        // then
+        assert!(result.is_some());
+        assert_eq!(dbm, dbm_expected);
+    }
+
+    #[test]
+    fn and_does_nothing_when_input_has_no_clauses() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.up();
+        let cc = ClockConstraint::new(Box::from(vec![]));
+        let dbm_expected = dbm.clone();
+
+        // when
+        let result = dbm.and(&cc, &vec![]);
+
+        // then
+        assert!(result.is_some());
+        assert_eq!(dbm, dbm_expected);
+    }
+
+    #[test]
+    fn and_works_correctly_when_input_has_multiple_clauses_with_single_clock() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        dbm.up();
+
+        let clause_0 = Clause::new(&clock, ClockComparator::LESSER, 5);
+        let val_1 = 3;
+        let op_1 = ClockComparator::LEQ;
+        let clause_1 = Clause::new(&clock, op_1, val_1);
+        let cc = ClockConstraint::new(Box::from(vec![clause_0, clause_1]));
+
+        let mut dbm_expected = dbm.clone();
+        dbm_expected.set(1, 0, encode_dbm_entry(val_1 as i32, op_1));
+
+        // when
+        let result = dbm.and(&cc, &clocks);
+
+        // then
+        assert!(result.is_some());
+        assert_eq!(dbm, dbm_expected);
+    }
+
+    #[test]
+    fn and_computes_canonical_dbm_when_input_has_multiple_clauses_with_multiple_clocks() {
+        // given
+        let clock_x = Clock::new("x");
+        let clock_y = Clock::new("y");
+        let clocks = vec![clock_x.clone(), clock_y.clone()];
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        dbm.up();
+
+        let clause_0 = Clause::new(&clock_x, ClockComparator::LESSER, 5);
+        let val_1 = 3;
+        let op_1 = ClockComparator::LEQ;
+        let clause_1 = Clause::new(&clock_y, op_1, val_1);
+        let cc = ClockConstraint::new(Box::from(vec![clause_0, clause_1]));
+
+        let mut dbm_expected = dbm.clone();
+        // val_1 / op_1 in both cases as this is stricter (and result should be canonical)
+        dbm_expected.set(1, 0, encode_dbm_entry(val_1 as i32, op_1));
+        dbm_expected.set(2, 0, encode_dbm_entry(val_1 as i32, op_1));
+
+        // when
+        let result = dbm.and(&cc, &clocks);
+
+        // then
+        assert!(result.is_some());
+        assert_eq!(dbm, dbm_expected);
+    }
+
+    #[test]
+    fn and_returns_none_when_result_is_unsatisfiable() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        dbm.up();
+
+        let clause_0 = Clause::new(&clock, ClockComparator::GREATER, 5);
+        let clause_1 = Clause::new(&clock, ClockComparator::LEQ, 3);
+        let cc = ClockConstraint::new(Box::from(vec![clause_0, clause_1]));
+
+        // when
+        let result = dbm.and(&cc, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_works_correctly_when_result_is_satisfiable_with_geq_leq() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.up();
+        // following line is x >= 5 as it is set in first row for comparison with clock zero
+        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let val = 5;
+        let op = ClockComparator::LEQ;
+        let clause = Clause::new(&clock, op, val);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_some());
+        let added_constraint_decoded = decode_dbm_entry(dbm.get(1, 0));
+        assert_eq!(added_constraint_decoded, (val as i32, op));
+    }
+
+    #[test]
+    fn and_clause_returns_none_when_result_is_unsatisfiable_with_greater_lesser() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        // following line is x > 5 as it is set in first row for comparison with clock zero
+        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LESSER));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::LESSER, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_returns_none_when_result_is_unsatisfiable_with_geq_lesser() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        // following line is x >= 5 as it is set in first row for comparison with clock zero
+        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::LESSER, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_returns_none_when_result_is_unsatisfiable_with_lesser_greater() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LESSER));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::GREATER, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_returns_none_when_result_is_unsatisfiable_with_leq_greater() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::GREATER, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_returns_none_when_result_is_unsatisfiable_with_greater_leq() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        // following line is x > 5 as it is set in first row for comparison with clock zero
+        dbm.set(0, 1, encode_dbm_entry(-5, ClockComparator::LESSER));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::LEQ, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_works_correctly_when_result_is_unsatisfiable_with_leq_greater() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause = Clause::new(&clock, ClockComparator::GREATER, 5);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn and_clause_works_correctly_when_result_is_satisfiable_with_leq_leq() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let val = 5;
+        let op = ClockComparator::LEQ;
+        let clause = Clause::new(&clock, op, val);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_some());
+        let added_constraint_decoded = decode_dbm_entry(dbm.get(1, 0));
+        assert_eq!(added_constraint_decoded, (val as i32, op));
+        let lower_bound_decoded = decode_dbm_entry(dbm.get(0, 1));
+        assert_eq!(lower_bound_decoded, (0, ClockComparator::LEQ));
+    }
+
+    #[test]
+    fn and_clause_works_correctly_when_result_is_satisfiable_with_leq_lesser() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LEQ));
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let val = 5;
+        let op = ClockComparator::LESSER;
+        let clause = Clause::new(&clock, op, val);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_some());
+        let added_constraint_decoded = decode_dbm_entry(dbm.get(1, 0));
+        assert_eq!(added_constraint_decoded, (val as i32, op));
+        let lower_bound_decoded = decode_dbm_entry(dbm.get(0, 1));
+        assert_eq!(lower_bound_decoded, (0, ClockComparator::LEQ));
+    }
+
+    #[test]
+    fn and_clause_does_nothing_when_clause_is_less_strict() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        dbm.set(1, 0, encode_dbm_entry(5, ClockComparator::LESSER));
+        let dbm_expected = dbm.clone();
+
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let val = 5;
+        let op = ClockComparator::LEQ;
+        let clause = Clause::new(&clock, op, val);
+
+        // when
+        let result = dbm.and_clause(&clause, &clocks);
+
+        // then
+        assert!(result.is_some());
+        assert_eq!(dbm, dbm_expected)
+    }
+
+    #[test]
+    fn up_works_correctly_when_dbm_has_single_clock() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(1);
+        let mut expected_dbm = dbm.clone();
+        expected_dbm.set(1, 0, UNBOUNDED_ENTRY);
+
+        // when
+        dbm.up();
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn up_works_correctly_when_dbm_has_multiple_clocks() {
+        // given
+        let number_of_clocks = 10;
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(number_of_clocks);
+
+        let mut expected_dbm = dbm.clone();
+        for i in 0..number_of_clocks {
+            expected_dbm.set(i + 1, 0, UNBOUNDED_ENTRY); // + 1 because of clock zero
+        }
+
+        // when
+        dbm.up();
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn up_does_nothing_when_dbm_only_consists_of_internal_clock_zero() {
+        // given
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(0);
+        let expected_dbm = dbm.clone();
+
+        // when
+        dbm.up();
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
     fn encode_dbm_entry_correctly_encodes_entry_when_comparator_is_strict() {
         // given
         let val = 42;
@@ -570,6 +878,48 @@ mod tests {
     fn encode_dbm_entry_panics_when_comparator_is_not_lesser_or_leq() {
         // when / then
         encode_dbm_entry(42, ClockComparator::GEQ);
+    }
+
+    #[test]
+    fn decode_dbm_entry_decodes_correctly_when_comp_is_strict() {
+        // given
+        let val = 42;
+        let comp = ClockComparator::LESSER;
+        let encoded_val = val << 1;
+
+        // when
+        let result = decode_dbm_entry(encoded_val);
+
+        // then
+        assert_eq!(result, (val, comp));
+    }
+
+    #[test]
+    fn decode_dbm_entry_decodes_correctly_when_comp_is_non_strict() {
+        // given
+        let val = 42;
+        let comp = ClockComparator::LEQ;
+        let encoded_val = (val << 1) + 1;
+
+        // when
+        let result = decode_dbm_entry(encoded_val);
+
+        // then
+        assert_eq!(result, (val, comp));
+    }
+
+    #[test]
+    fn decode_dbm_entry_decodes_correctly_when_val_is_negative() {
+        // given
+        let val = -42;
+        let comp = ClockComparator::LEQ;
+        let encoded_val = (val << 1) + 1;
+
+        // when
+        let result = decode_dbm_entry(encoded_val);
+
+        // then
+        assert_eq!(result, (val, comp));
     }
 
     #[test]
@@ -668,5 +1018,29 @@ mod tests {
 
         // when / then
         find_clock_pos_in_dbm(&clock, &clocks);
+    }
+
+    #[test]
+    fn panic_if_clock_diffs_to_self_does_not_panic_when_clock_eq_to_self() {
+        // given
+        let dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+
+        // when / then
+        // following line should not panic
+        panic_if_clock_diffs_to_self(&dbm);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_if_clock_diffs_to_self_panics_when_clock_diffs_to_self() {
+        // given
+        let size = 4;
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let leq_42_enc = encode_dbm_entry(42, ClockComparator::LEQ);
+        dbm.set(size / 2, size / 2, leq_42_enc);
+
+        // when / then
+        // following line should panic
+        panic_if_clock_diffs_to_self(&dbm);
     }
 }

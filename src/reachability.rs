@@ -302,4 +302,94 @@ mod tests {
         // then
         assert!(result.is_empty());
     }
+
+    #[test]
+    fn find_unreachable_locations_terminates_when_k_norm_is_necessary_minimal_example() {
+        // given
+        let clock_x = Clock::new("x");
+        let clock_y = Clock::new("y");
+
+        let clause_x_leq10 = Clause::new(&clock_x, ClockComparator::LEQ, 10);
+        let invariant_loop = ClockConstraint::new(Box::from(vec![clause_x_leq10.clone()]));
+
+        let clause_x_geq10 = Clause::new(&clock_x, ClockComparator::GEQ, 10);
+        let guard_ll = ClockConstraint::new(Box::from(vec![clause_x_leq10, clause_x_geq10]));
+
+        let clause_x_g20 = Clause::new(&clock_x, ClockComparator::GREATER, 20);
+        let guard_le = ClockConstraint::new(Box::from(vec![clause_x_g20]));
+
+        let loc_loop = Location::new("loop", true, Some(invariant_loop));
+        let loc_end = Location::new("end", false, None);
+
+        let sw_ll = Switch::new(
+            &loc_loop,
+            Some(guard_ll),
+            "ll",
+            Box::from(vec![clock_x.clone()]),
+            &loc_loop,
+        );
+        let sw_le = Switch::new(
+            &loc_loop,
+            Some(guard_le),
+            "le",
+            Box::from(vec![clock_x.clone(), clock_y.clone()]),
+            &loc_end,
+        );
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc_loop, loc_end.clone()]),
+            Box::from(vec![clock_x, clock_y]),
+            Box::from(vec![sw_ll, sw_le]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first(), Some(loc_end.name()));
+    }
+
+    #[test]
+    fn find_unreachable_locations_works_correctly_when_ta_has_no_constraints_and_no_clocks() {
+        // given
+        let loc_start = Location::new("start", true, None);
+        let loc_loop = Location::new("loop", false, None);
+        let loc_end = Location::new("end", false, None);
+
+        let sw_sl = Switch::new(&loc_start, None, "sl", Box::from(vec![]), &loc_loop);
+        let sw_ll = Switch::new(&loc_loop, None, "ll", Box::from(vec![]), &loc_loop);
+        let sw_le = Switch::new(&loc_loop, None, "le", Box::from(vec![]), &loc_end);
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc_start, loc_loop, loc_end]),
+            Box::from(vec![]),
+            Box::from(vec![sw_sl, sw_ll, sw_le]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_unreachable_locations_returns_non_initial_locs_when_ta_has_no_switches() {
+        // given
+        let init = Location::new("init", true, None);
+        let other = Location::new("other", false, None);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![init, other.clone()]),
+            Box::from(vec![]),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = find_unreachable_locations(&ta);
+
+        // then
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first(), Some(other.name()));
+    }
 }
