@@ -61,7 +61,7 @@ impl TimedAutomaton {
             );
         }
         match marked_init.first() {
-            Some(loc) => *loc,
+            Some(loc) => loc,
             None => panic!(
                 "Did not find any initial location in {:?}",
                 self.locations()
@@ -88,8 +88,7 @@ impl TimedAutomaton {
 
         let mut all_constants: Vec<u32> = invariants
             .chain(guards)
-            .map(|cc| cc.clauses().clone())
-            .flat_map(|clauses| clauses)
+            .flat_map(|cc| cc.clauses().clone())
             .map(|clause| clause.rhs())
             .collect();
         all_constants.sort_unstable();

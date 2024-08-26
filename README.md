@@ -12,3 +12,9 @@ _wasm-pack_ offers a simple solution to generate a package for NPM, just run the
 ```sh
 wasm-pack build --target bundler
 ```
+
+## Linting
+
+This project uses Clippy for linting.
+For instructions on how to install Clippy, see the [Clippy repository](https://github.com/rust-lang/rust-clippy).
+To run Clippy, simply execute `cargo clippy`.

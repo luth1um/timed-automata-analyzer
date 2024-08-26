@@ -93,7 +93,7 @@ impl DifferenceBoundMatrix {
             self.and_clause(clause, all_clocks_sorted)?;
         }
 
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         Some(())
         // TODO: write tests
     }
@@ -109,7 +109,7 @@ impl DifferenceBoundMatrix {
     /// This method returns `None` if and only if the resulting DBM would be unsatisfiable.
     fn and_clause(&mut self, clause: &Clause, all_clocks_sorted: &Vec<Clock>) -> Option<()> {
         // DBMs only have < and <= in entries, i.e., > and >= need to be "translated"
-        let clock_pos = find_clock_pos_in_dbm(&clause.lhs(), &all_clocks_sorted);
+        let clock_pos = find_clock_pos_in_dbm(clause.lhs(), all_clocks_sorted);
         let (row, column) = match clause.op() {
             ClockComparator::GEQ | ClockComparator::GREATER => (0, clock_pos),
             ClockComparator::LEQ | ClockComparator::LESSER => (clock_pos, 0),
@@ -152,7 +152,7 @@ impl DifferenceBoundMatrix {
             }
         }
 
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         Some(())
         // TODO: write tests
     }
@@ -166,7 +166,7 @@ impl DifferenceBoundMatrix {
             self.set(i, 0, UNBOUNDED_ENTRY);
         }
 
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         // TODO: write tests
     }
 
@@ -183,7 +183,7 @@ impl DifferenceBoundMatrix {
     pub fn reset(&mut self, reset: &Vec<Clock>, all_clocks_sorted: &Vec<Clock>) {
         // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
         for clock in reset {
-            let pos_in_dbm = find_clock_pos_in_dbm(&clock, all_clocks_sorted);
+            let pos_in_dbm = find_clock_pos_in_dbm(clock, all_clocks_sorted);
             let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
             for i in 0..self.size {
                 if i == pos_in_dbm {
@@ -196,7 +196,7 @@ impl DifferenceBoundMatrix {
             }
         }
 
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         // TODO: write tests
     }
 
@@ -224,7 +224,7 @@ impl DifferenceBoundMatrix {
         }
 
         self.close(); // compute canonical form
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         // TODO: write tests
     }
 
@@ -243,7 +243,7 @@ impl DifferenceBoundMatrix {
             }
         }
 
-        panic_if_clock_diffs_to_self(&self);
+        panic_if_clock_diffs_to_self(self);
         // TODO: write tests
     }
 }
@@ -284,8 +284,8 @@ fn add_encoded_dbm_entries(first: i32, second: i32) -> i32 {
 }
 
 fn find_clock_pos_in_dbm(clock: &Clock, all_clocks: &Vec<Clock>) -> usize {
-    for i in 0..all_clocks.len() {
-        if *clock == all_clocks[i] {
+    for (i, clock_from_vec) in all_clocks.iter().enumerate() {
+        if clock == clock_from_vec {
             return i + 1; // + 1 because of special clock "zero" in DBMs
         }
     }

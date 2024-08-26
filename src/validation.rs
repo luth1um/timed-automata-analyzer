@@ -1,5 +1,8 @@
 use crate::ta::TimedAutomaton;
 
+type ValidationFnResult = Result<(), String>;
+type ValidationFn = fn(&TimedAutomaton) -> ValidationFnResult;
+
 pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // TODO: add more input validations and write tests for validations
     // - all clocks used in invariants and guards are contained in set of clocks
@@ -9,7 +12,7 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // - invariants of all locations are downward closed
 
     let mut error_msgs: Vec<String> = Vec::new();
-    let validation_fns: Vec<fn(&TimedAutomaton) -> Result<(), String>> =
+    let validation_fns: Vec<ValidationFn> =
         vec![validate_init_loc_count, validate_at_least_one_loc];
 
     for validation_fn in validation_fns {
@@ -24,7 +27,7 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     Err(error_msgs)
 }
 
-fn validate_init_loc_count(ta: &TimedAutomaton) -> Result<(), String> {
+fn validate_init_loc_count(ta: &TimedAutomaton) -> ValidationFnResult {
     let init_loc_count = ta
         .locations()
         .iter()
@@ -48,8 +51,8 @@ fn validate_init_loc_count(ta: &TimedAutomaton) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_at_least_one_loc(ta: &TimedAutomaton) -> Result<(), String> {
-    if ta.locations().len() == 0 {
+fn validate_at_least_one_loc(ta: &TimedAutomaton) -> ValidationFnResult {
+    if ta.locations().is_empty() {
         return Err(String::from("The TA does not have any locations."));
     }
     Ok(())

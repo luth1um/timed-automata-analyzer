@@ -34,8 +34,8 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
             None => panic!("No symbolic state found even though vec should not be empty"),
         };
 
-        let mut computed_states = next_states_for_switches(&current, &ta, &clocks_sorted, k);
-        if let Some(loc_state) = next_state_for_same_location(&current, &ta, &clocks_sorted, k) {
+        let mut computed_states = next_states_for_switches(&current, ta, &clocks_sorted, k);
+        if let Some(loc_state) = next_state_for_same_location(&current, ta, &clocks_sorted, k) {
             computed_states.push(loc_state);
         }
         for state in computed_states {
@@ -47,10 +47,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
     }
 
     // process result for output
-    locations_not_visited
-        .iter()
-        .map(|name| name.clone())
-        .collect()
+    locations_not_visited.iter().cloned().collect()
 }
 
 fn next_states_for_switches(
@@ -67,14 +64,14 @@ fn next_states_for_switches(
         .for_each(|sw| {
             let mut next_zone = current_state.zone().clone();
             if let Some(guard) = sw.guard() {
-                if let None = next_zone.and(guard, all_clocks_sorted) {
+                if next_zone.and(guard, all_clocks_sorted).is_none() {
                     // result unsatisfiable
                     return;
                 }
             }
             next_zone.reset(sw.reset(), all_clocks_sorted);
             if let Some(invariant) = sw.target().invariant() {
-                if let None = next_zone.and(invariant, all_clocks_sorted) {
+                if next_zone.and(invariant, all_clocks_sorted).is_none() {
                     // result unsatisfiable
                     return;
                 }
@@ -97,8 +94,7 @@ fn next_state_for_same_location(
     let loc: &Location = match ta
         .locations()
         .iter()
-        .filter(|loc| (*loc).name() == current_state.location())
-        .next()
+        .find(|loc| (*loc).name() == current_state.location())
     {
         Some(loc) => loc,
         None => panic!(
@@ -110,7 +106,7 @@ fn next_state_for_same_location(
     let mut next_zone = current_state.zone().clone();
     next_zone.up();
     if let Some(invariant) = loc.invariant() {
-        next_zone.and(&invariant, &all_clocks_sorted)?;
+        next_zone.and(invariant, all_clocks_sorted)?;
     }
     next_zone.k_norm(highest_constant_in_ta);
 
