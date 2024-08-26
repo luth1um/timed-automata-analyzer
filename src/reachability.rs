@@ -44,6 +44,10 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
                 states_to_process.push(state);
             }
         }
+
+        if locations_not_visited.is_empty() {
+            return Vec::new();
+        }
     }
 
     // process result for output
