@@ -199,6 +199,7 @@ impl DifferenceBoundMatrix {
     pub fn k_norm(&mut self, k: i32) {
         let k_leq_enc = encode_dbm_entry(k, ClockComparator::LEQ);
         let minus_k_lesser_enc = encode_dbm_entry(-k, ClockComparator::LESSER);
+        let mut changed_dbm = false;
 
         for i in 0..self.size {
             for j in 0..self.size {
@@ -210,14 +211,20 @@ impl DifferenceBoundMatrix {
 
                 if d_ij > k_leq_enc {
                     self.set(i, j, UNBOUNDED_ENTRY);
+                    changed_dbm = true;
                 } else if d_ij < minus_k_lesser_enc {
                     self.set(i, j, minus_k_lesser_enc);
+                    changed_dbm = true;
                 }
             }
         }
 
         panic_if_clock_diffs_to_self(self);
-        self.close(); // compute canonical form
+
+        // re-compute canonical form in case of any changes
+        if changed_dbm {
+            self.close();
+        }
     }
 
     /// Computes the canonical version of a DBM by using Floyd's algorithm for shortest paths. For

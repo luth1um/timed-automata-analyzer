@@ -35,7 +35,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
         };
 
         let mut computed_states = next_states_for_switches(&current, ta, &clocks_sorted, k);
-        if let Some(loc_state) = next_state_for_same_location(&current, ta, &clocks_sorted, k) {
+        if let Some(loc_state) = next_state_for_same_location(&current, ta, &clocks_sorted) {
             computed_states.push(loc_state);
         }
         for state in computed_states {
@@ -88,7 +88,6 @@ fn next_state_for_same_location(
     current_state: &SymbolicState,
     ta: &TimedAutomaton,
     all_clocks_sorted: &Vec<Clock>,
-    highest_constant_in_ta: i32,
 ) -> Option<SymbolicState> {
     let loc: &Location = match ta
         .locations()
@@ -107,8 +106,6 @@ fn next_state_for_same_location(
     if let Some(invariant) = loc.invariant() {
         next_zone.and(invariant, all_clocks_sorted)?;
     }
-    // TODO: Do I even need to k-normalize here? I don't have resets here
-    next_zone.k_norm(highest_constant_in_ta);
 
     Some(SymbolicState::new(current_state.location(), next_zone))
 }
@@ -530,7 +527,7 @@ mod tests {
         let expected_state = SymbolicState::new(loc.name(), expected_zone);
 
         // when
-        let result = next_state_for_same_location(&state, &ta, &clocks, 0);
+        let result = next_state_for_same_location(&state, &ta, &clocks);
 
         // then
         assert_eq!(result, Some(expected_state));
@@ -562,7 +559,7 @@ mod tests {
         let expected_state = SymbolicState::new(loc.name(), expected_zone);
 
         // when
-        let result = next_state_for_same_location(&state, &ta, &clocks, k as i32);
+        let result = next_state_for_same_location(&state, &ta, &clocks);
 
         // then
         assert_eq!(result, Some(expected_state));
