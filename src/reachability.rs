@@ -45,6 +45,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
             }
         }
 
+        // TODO: "&& !locations_not_visited.is_empty()" for while loop instead of if here?
         if locations_not_visited.is_empty() {
             return Vec::new();
         }

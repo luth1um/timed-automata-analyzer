@@ -179,13 +179,10 @@ impl DifferenceBoundMatrix {
     /// entries are always set to the correct field.
     pub fn reset(&mut self, reset: &Vec<Clock>, all_clocks_sorted: &Vec<Clock>) {
         // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
+        let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
         for clock in reset {
             let pos_in_dbm = find_clock_pos_in_dbm(clock, all_clocks_sorted);
-            let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
             for i in 0..self.size {
-                if i == pos_in_dbm {
-                    continue;
-                }
                 let val_xi = add_encoded_dbm_entries(leq_0_enc, self.get(0, i));
                 self.set(pos_in_dbm, i, val_xi);
                 let val_ix = add_encoded_dbm_entries(self.get(i, 0), leq_0_enc);
@@ -194,7 +191,6 @@ impl DifferenceBoundMatrix {
         }
 
         panic_if_clock_diffs_to_self(self);
-        // TODO: write tests
     }
 
     /// Applies k-normalization to the DBM. The resulting DBM is canonical if the input DBM was
@@ -213,16 +209,15 @@ impl DifferenceBoundMatrix {
                 }
 
                 if d_ij > k_leq_enc {
-                    self.set(i, j, k_leq_enc);
+                    self.set(i, j, UNBOUNDED_ENTRY);
                 } else if d_ij < minus_k_lesser_enc {
                     self.set(i, j, minus_k_lesser_enc);
                 }
             }
         }
 
-        self.close(); // compute canonical form
         panic_if_clock_diffs_to_self(self);
-        // TODO: write tests
+        self.close(); // compute canonical form
     }
 
     /// Computes the canonical version of a DBM by using Floyd's algorithm for shortest paths. For
@@ -241,7 +236,6 @@ impl DifferenceBoundMatrix {
         }
 
         panic_if_clock_diffs_to_self(self);
-        // TODO: write tests
     }
 }
 
@@ -311,6 +305,7 @@ fn panic_if_clock_diffs_to_self(dbm: &DifferenceBoundMatrix) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ta::clock_constraint::clause::ClockComparator::LESSER;
 
     #[test]
     fn for_initial_symbolic_state_creates_vector_with_exact_capacity_when_called() {
@@ -828,6 +823,145 @@ mod tests {
 
         // when
         dbm.up();
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn reset_resets_to_0_when_called_with_single_clock() {
+        // given
+        let clock_x = Clock::new("x");
+        let all_clocks = vec![clock_x.clone()];
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(all_clocks.len());
+        let leq_42_enc = encode_dbm_entry(42, ClockComparator::LEQ);
+        let lesser_minus_12_enc = encode_dbm_entry(-12, LESSER);
+        dbm.set(1, 0, leq_42_enc); // x <= 42
+        dbm.set(0, 1, lesser_minus_12_enc); // x > 12
+
+        // when
+        dbm.reset(&vec![clock_x], &all_clocks);
+
+        // then
+        assert_eq!(
+            dbm,
+            DifferenceBoundMatrix::for_initial_symbolic_state(all_clocks.len())
+        );
+    }
+
+    #[test]
+    fn reset_updates_difference_constraints_correctly_when_called_with_multiple_clocks() {
+        // given
+        let clock_x = Clock::new("x");
+        let clock_y = Clock::new("y");
+        let all_clocks = vec![clock_x.clone(), clock_y.clone()];
+
+        let clause_x_geq_42 = Clause::new(&clock_x, ClockComparator::GEQ, 42);
+        let clause_y_leq_50 = Clause::new(&clock_y, ClockComparator::LEQ, 50);
+        let cc = ClockConstraint::new(Box::from(vec![clause_x_geq_42, clause_y_leq_50]));
+
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(all_clocks.len());
+        dbm.up();
+        dbm.and(&cc, &all_clocks);
+
+        let mut expected_dbm = DifferenceBoundMatrix::for_initial_symbolic_state(all_clocks.len());
+        let leq_minus_42_enc = encode_dbm_entry(-42, ClockComparator::LEQ);
+        let leq_50_enc = encode_dbm_entry(50, ClockComparator::LEQ);
+        expected_dbm.set(2, 0, leq_50_enc); // y <= 50
+        expected_dbm.set(0, 2, leq_minus_42_enc); // y >= 42
+        expected_dbm.set(1, 2, leq_minus_42_enc); // y - x >= 42
+        expected_dbm.set(2, 1, leq_50_enc); // y - x <= 50
+
+        // when
+        dbm.reset(&vec![clock_x], &all_clocks);
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn k_norm_normalizes_dbm_when_input_is_not_normalized() {
+        // given
+        // x <= 10 AND y <= 40 AND y - x == 30; k = 20 -> x <= 10 AND y > 20 AND y - x > 20
+        let k = 20;
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let leq_10_enc = encode_dbm_entry(10, ClockComparator::LEQ);
+        let leq_30_enc = encode_dbm_entry(30, ClockComparator::LEQ);
+        let leq_minus_30_enc = encode_dbm_entry(-30, ClockComparator::LEQ);
+        let leq_40_enc = encode_dbm_entry(40, ClockComparator::LEQ);
+        dbm.set(1, 0, leq_10_enc); // x <= 10
+        dbm.set(2, 0, leq_40_enc); // y <= 40
+        dbm.set(2, 1, leq_30_enc); // y - x <= 30
+        dbm.set(1, 2, leq_minus_30_enc); // y - x >= 30
+
+        let mut expected_dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let lesser_minus_20_enc = encode_dbm_entry(-20, ClockComparator::LESSER);
+        expected_dbm.set(1, 0, leq_10_enc); // x <= 10
+        expected_dbm.set(0, 2, lesser_minus_20_enc); // y > 20
+        expected_dbm.set(2, 0, UNBOUNDED_ENTRY); // y <= INFINITY
+        expected_dbm.set(2, 1, UNBOUNDED_ENTRY); // y - x <= INFINITY
+        expected_dbm.set(1, 2, lesser_minus_20_enc); // y - x > 20
+
+        // when
+        dbm.k_norm(k);
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn k_norm_does_nothing_when_input_is_already_normalized() {
+        // given
+        // x <= 10 AND y <= 10 AND x == y; k = 20
+        let k = 20;
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let leq_10_enc = encode_dbm_entry(10, ClockComparator::LEQ);
+        dbm.set(1, 0, leq_10_enc); // x <= 10
+        dbm.set(2, 0, leq_10_enc); // y <= 10
+
+        let expected_dbm = dbm.clone();
+
+        // when
+        dbm.k_norm(k);
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn close_computes_canonical_dbm_when_input_is_not_canonical() {
+        // given
+        // x <= 3 AND y <= 5 AND x == y -> canonical: x <= 3 AND y <= 3 AND x == <
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let leq_3_enc = encode_dbm_entry(3, ClockComparator::LEQ);
+        let leq_5_enc = encode_dbm_entry(5, ClockComparator::LEQ);
+        dbm.set(1, 0, leq_3_enc);
+        dbm.set(2, 0, leq_5_enc);
+
+        let mut expected_dbm = dbm.clone();
+        expected_dbm.set(2, 0, leq_3_enc);
+
+        // when
+        dbm.close();
+
+        // then
+        assert_eq!(dbm, expected_dbm);
+    }
+
+    #[test]
+    fn close_does_nothing_when_input_is_canonical() {
+        // given
+        // x <= 3 AND y <= 3 AND x == y already is canonical
+        let mut dbm = DifferenceBoundMatrix::for_initial_symbolic_state(2);
+        let leq_3_enc = encode_dbm_entry(3, ClockComparator::LEQ);
+        dbm.set(1, 0, leq_3_enc);
+        dbm.set(2, 0, leq_3_enc);
+
+        let expected_dbm = dbm.clone();
+
+        // when
+        dbm.close();
 
         // then
         assert_eq!(dbm, expected_dbm);
