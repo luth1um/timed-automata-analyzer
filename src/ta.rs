@@ -97,7 +97,6 @@ impl TimedAutomaton {
             Some(k) => *k as i32,
             None => 0,
         }
-        // TODO: write tests
     }
 }
 
@@ -150,6 +149,74 @@ mod tests {
 
         // then
         assert_eq!(*result, init_loc);
+    }
+
+    #[test]
+    fn find_highest_constant_in_any_clause_finds_constant_when_constant_is_in_invariant() {
+        // given
+        let highest_const = 1000;
+        let lower_const = highest_const / 2;
+
+        let clock = Clock::new("x");
+        let clause_inv = Clause::new(&clock.clone(), ClockComparator::LEQ, highest_const);
+        let invariant = ClockConstraint::new(Box::from(vec![clause_inv]));
+        let clause_guard = Clause::new(&clock.clone(), ClockComparator::LEQ, lower_const);
+        let guard = ClockConstraint::new(Box::from(vec![clause_guard]));
+
+        let loc = Location::new("loc", true, Some(invariant));
+        let sw = Switch::new(&loc, Some(guard), "a", Box::from(vec![]), &loc);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc]),
+            Box::from(vec![clock]),
+            Box::from(vec![sw]),
+        );
+
+        // when
+        let result = ta.find_highest_constant_in_any_clause();
+
+        // then
+        assert_eq!(result, highest_const as i32);
+    }
+
+    #[test]
+    fn find_highest_constant_in_any_clause_finds_constant_when_constant_is_in_guard() {
+        // given
+        let highest_const = 1000;
+        let lower_const = highest_const / 2;
+
+        let clock = Clock::new("x");
+        let clause_inv = Clause::new(&clock.clone(), ClockComparator::LEQ, lower_const);
+        let invariant = ClockConstraint::new(Box::from(vec![clause_inv]));
+        let clause_guard = Clause::new(&clock.clone(), ClockComparator::LEQ, highest_const);
+        let guard = ClockConstraint::new(Box::from(vec![clause_guard]));
+
+        let loc = Location::new("loc", true, Some(invariant));
+        let sw = Switch::new(&loc, Some(guard), "a", Box::from(vec![]), &loc);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc]),
+            Box::from(vec![clock]),
+            Box::from(vec![sw]),
+        );
+
+        // when
+        let result = ta.find_highest_constant_in_any_clause();
+
+        // then
+        assert_eq!(result, highest_const as i32);
+    }
+
+    #[test]
+    fn find_highest_constant_in_any_clause_returns_0_when_ta_does_not_contain_constraint() {
+        // given
+        let loc = Location::new("loc", true, None);
+        let sw = Switch::new(&loc, None, "a", Box::from(vec![]), &loc);
+        let ta = TimedAutomaton::new(Box::from(vec![loc]), Box::from(vec![]), Box::from(vec![sw]));
+
+        // when
+        let result = ta.find_highest_constant_in_any_clause();
+
+        // then
+        assert_eq!(result, 0);
     }
 
     #[test]
