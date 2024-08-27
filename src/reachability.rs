@@ -28,7 +28,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
     locations_not_visited.remove(init_loc.name());
 
     // actual reachability analysis
-    while !states_to_process.is_empty() {
+    while !states_to_process.is_empty() && !locations_not_visited.is_empty() {
         let current = match states_to_process.pop() {
             Some(state) => state,
             None => panic!("No symbolic state found even though vec should not be empty"),
@@ -43,11 +43,6 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
                 locations_not_visited.remove(state.location());
                 states_to_process.push(state);
             }
-        }
-
-        // TODO: "&& !locations_not_visited.is_empty()" for while loop instead of if here?
-        if locations_not_visited.is_empty() {
-            return Vec::new();
         }
     }
 
