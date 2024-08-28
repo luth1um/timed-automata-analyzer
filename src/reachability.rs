@@ -1,7 +1,6 @@
 use crate::symbolic_state::difference_bound_matrix::DifferenceBoundMatrix;
 use crate::symbolic_state::SymbolicState;
 use crate::ta::clock::Clock;
-use crate::ta::location::Location;
 use crate::ta::TimedAutomaton;
 use std::collections::HashSet;
 
@@ -20,7 +19,12 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
 
     let init_loc = ta.find_initial_location();
     let k = ta.find_highest_constant_in_any_clause();
-    let init_zone = DifferenceBoundMatrix::for_initial_symbolic_state(ta.clocks().len());
+
+    let mut init_zone = DifferenceBoundMatrix::for_initial_symbolic_state(ta.clocks().len());
+    init_zone.up();
+    if let Some(invariant) = init_loc.invariant() {
+        init_zone.and(invariant, &clocks_sorted);
+    }
     let init_symbolic_state = SymbolicState::new(init_loc.name(), init_zone);
 
     visited_states.insert(init_symbolic_state.clone());
@@ -34,11 +38,7 @@ pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
             None => panic!("No symbolic state found even though vec should not be empty"),
         };
 
-        let mut computed_states = next_states_for_switches(&current, ta, &clocks_sorted, k);
-        if let Some(loc_state) = next_state_for_same_location(&current, ta, &clocks_sorted) {
-            computed_states.push(loc_state);
-        }
-        for state in computed_states {
+        for state in next_states_for_switches(&current, ta, &clocks_sorted, k) {
             if visited_states.insert(state.clone()) {
                 locations_not_visited.remove(state.location());
                 states_to_process.push(state);
@@ -63,6 +63,8 @@ fn next_states_for_switches(
         .filter(|sw| sw.source().name() == current_state.location())
         .for_each(|sw| {
             let mut next_zone = current_state.zone().clone();
+
+            // operations for switch
             if let Some(guard) = sw.guard() {
                 if next_zone.and(guard, all_clocks_sorted).is_none() {
                     // result unsatisfiable
@@ -76,6 +78,16 @@ fn next_states_for_switches(
                     return;
                 }
             }
+
+            // operations for target location
+            next_zone.up();
+            if let Some(invariant) = sw.target().invariant() {
+                if next_zone.and(invariant, all_clocks_sorted).is_none() {
+                    // result unsatisfiable
+                    return;
+                }
+            }
+
             next_zone.k_norm(highest_constant_in_ta);
             let next_state = SymbolicState::new(sw.target().name(), next_zone);
             next_states.push(next_state);
@@ -84,37 +96,12 @@ fn next_states_for_switches(
     next_states
 }
 
-fn next_state_for_same_location(
-    current_state: &SymbolicState,
-    ta: &TimedAutomaton,
-    all_clocks_sorted: &Vec<Clock>,
-) -> Option<SymbolicState> {
-    let loc: &Location = match ta
-        .locations()
-        .iter()
-        .find(|loc| (*loc).name() == current_state.location())
-    {
-        Some(loc) => loc,
-        None => panic!(
-            "Cannot find location with name {}",
-            current_state.location()
-        ),
-    };
-
-    let mut next_zone = current_state.zone().clone();
-    next_zone.up();
-    if let Some(invariant) = loc.invariant() {
-        next_zone.and(invariant, all_clocks_sorted)?;
-    }
-
-    Some(SymbolicState::new(current_state.location(), next_zone))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::clock_constraint::ClockConstraint;
+    use crate::ta::location::Location;
     use crate::ta::switch::Switch;
 
     #[test]
@@ -413,6 +400,7 @@ mod tests {
 
         let mut expected_zone = state.zone().clone();
         expected_zone.and(&cc, &clocks);
+        expected_zone.up();
         let state_other = SymbolicState::new(other.name(), expected_zone.clone());
         let state_another = SymbolicState::new(another.name(), expected_zone);
         let expected_states = vec![state_other, state_another];
@@ -456,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn next_states_for_switches_returns_only_reachable_states_when_some_states_are_unsatisfiable() {
+    fn next_states_for_switches_returns_only_reachable_states_when_some_zones_are_unsatisfiable() {
         // given
         let k = 42;
         let clock = Clock::new("x");
@@ -498,6 +486,7 @@ mod tests {
 
         let mut expected_zone = state.zone().clone();
         expected_zone.and(&cc_satisfiable, &clocks);
+        expected_zone.up();
         let state_other = SymbolicState::new(reachable.name(), expected_zone);
         let expected_states = vec![state_other];
 
@@ -509,59 +498,75 @@ mod tests {
     }
 
     #[test]
-    fn next_state_for_same_location_has_correct_result_when_location_does_not_have_invariant() {
-        // given
-        let loc = Location::new("init", true, None);
-        let clocks: Vec<Clock> = vec![Clock::new("x")];
-        let ta = TimedAutomaton::new(
-            Box::from(vec![loc.clone()]),
-            Box::from(clocks.clone()),
-            Box::from(vec![]),
-        );
-
-        let zone = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
-        let state = SymbolicState::new(loc.name(), zone.clone());
-
-        let mut expected_zone = zone.clone();
-        expected_zone.up();
-        let expected_state = SymbolicState::new(loc.name(), expected_zone);
-
-        // when
-        let result = next_state_for_same_location(&state, &ta, &clocks);
-
-        // then
-        assert_eq!(result, Some(expected_state));
-    }
-
-    #[test]
-    fn next_state_for_same_location_has_correct_result_when_location_has_invariant() {
+    fn next_states_for_switches_results_in_correct_zone_when_target_has_invariant() {
         // given
         let k = 42;
         let clock = Clock::new("x");
-        let clocks: Vec<Clock> = vec![clock.clone()];
+        let clocks = vec![clock.clone()];
+        let clause_leq_k = Clause::new(&clock, ClockComparator::LEQ, k);
+        let clause_leq_20 = Clause::new(&clock, ClockComparator::LEQ, 20);
+        let guard = ClockConstraint::new(Box::from(vec![clause_leq_k]));
+        let invariant = ClockConstraint::new(Box::from(vec![clause_leq_20]));
 
-        let clause = Clause::new(&clock, ClockComparator::LEQ, k);
-        let invariant = ClockConstraint::new(Box::from(vec![clause]));
+        let init = Location::new("init", true, None);
+        let other = Location::new("other", false, Some(invariant.clone()));
 
-        let loc = Location::new("init", true, Some(invariant.clone()));
+        let sw = Switch::new(&init, Some(guard.clone()), "act", Box::from(vec![]), &other);
+
         let ta = TimedAutomaton::new(
-            Box::from(vec![loc.clone()]),
+            Box::from(vec![init.clone(), other.clone()]),
             Box::from(clocks.clone()),
-            Box::from(vec![]),
+            Box::from(vec![sw]),
         );
 
-        let zone = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
-        let state = SymbolicState::new(loc.name(), zone.clone());
+        let mut zone = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        zone.up();
+        let state = SymbolicState::new(init.name(), zone.clone());
 
         let mut expected_zone = zone.clone();
+        expected_zone.and(&guard, &clocks);
+        expected_zone.and(&invariant, &clocks);
         expected_zone.up();
         expected_zone.and(&invariant, &clocks);
-        let expected_state = SymbolicState::new(loc.name(), expected_zone);
+        let expected_state = SymbolicState::new(other.name(), expected_zone);
 
         // when
-        let result = next_state_for_same_location(&state, &ta, &clocks);
+        let result = next_states_for_switches(&state, &ta, &clocks, k as i32);
 
         // then
-        assert_eq!(result, Some(expected_state));
+        assert_eq!(result, vec![expected_state]);
+    }
+
+    #[test]
+    fn next_states_for_switches_returns_empty_vec_when_not_reachable_due_to_target_invariant() {
+        // given
+        let k = 42;
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let clause_leq_k = Clause::new(&clock, ClockComparator::LEQ, k);
+        let clause_greater_k = Clause::new(&clock, ClockComparator::GREATER, k);
+        let guard = ClockConstraint::new(Box::from(vec![clause_greater_k]));
+        let invariant = ClockConstraint::new(Box::from(vec![clause_leq_k]));
+
+        let init = Location::new("init", true, None);
+        let unreachable = Location::new("unreachable", false, Some(invariant));
+
+        let sw = Switch::new(&init, Some(guard), "sw1", Box::from(vec![]), &unreachable);
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![init.clone(), unreachable]),
+            Box::from(clocks.clone()),
+            Box::from(vec![sw]),
+        );
+
+        let mut zone = DifferenceBoundMatrix::for_initial_symbolic_state(clocks.len());
+        zone.up();
+        let state = SymbolicState::new(init.name(), zone);
+
+        // when
+        let result = next_states_for_switches(&state, &ta, &clocks, k as i32);
+
+        // then
+        assert_eq!(result, vec![]);
     }
 }

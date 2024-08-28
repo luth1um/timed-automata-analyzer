@@ -10,8 +10,9 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // - set of clocks does not contain a clock name twice
     // - set of locations does not contain a location name twice
     // - invariants of all locations are downward closed
-    // - greatest constant k in TA is <= ((i32::MAX >> 1) - 2), as we use i32 for analysis, and we
-    //   need an additional bit for the encoding of DBM entries
+    // - greatest constant k in TA is <= ((i32::MAX >> 2) - 2), as we use i32 for analysis, and we
+    //   need additional bits for the encoding of DBM entries and for values that are temporarily
+    //   larger than k (right before k-normalization is applied)
 
     let mut error_msgs: Vec<String> = Vec::new();
     let validation_fns: Vec<ValidationFn> =
