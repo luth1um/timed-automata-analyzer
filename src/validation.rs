@@ -1,22 +1,30 @@
+use crate::ta::clock_constraint::clause::ClockComparator;
+use crate::ta::clock_constraint::clause::ClockComparator::LESSER;
 use crate::ta::TimedAutomaton;
+use std::collections::HashMap;
 
 type ValidationFnResult = Result<(), String>;
 type ValidationFn = fn(&TimedAutomaton) -> ValidationFnResult;
+
+/// The highest allowed constant is validated as the type for the rhs in clauses is `u32`. However,
+/// for analysis we need `i32`. Additionally, we need one bit for the encoding of DBM entries and
+/// another bit to accommodate for temporary values before k-normalization.
+const MAX_ALLOWED_CONSTANT_IN_TA: i32 = (i32::MAX >> 2) - 2;
 
 pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
     // TODO: add more input validations and write tests for validations
     // - all clocks used in invariants and guards are contained in set of clocks
     // - all locations used in guards (source and target) are contained in set of locations
-    // - set of clocks does not contain a clock name twice
-    // - set of locations does not contain a location name twice
-    // - invariants of all locations are downward closed
-    // - greatest constant k in TA is <= ((i32::MAX >> 2) - 2), as we use i32 for analysis, and we
-    //   need additional bits for the encoding of DBM entries and for values that are temporarily
-    //   larger than k (right before k-normalization is applied)
 
     let mut error_msgs: Vec<String> = Vec::new();
-    let validation_fns: Vec<ValidationFn> =
-        vec![validate_init_loc_count, validate_at_least_one_loc];
+    let validation_fns: Vec<ValidationFn> = vec![
+        validate_init_loc_count,
+        validate_at_least_one_loc,
+        validate_all_invariants_downward_closed,
+        validate_highest_constant,
+        validate_unique_location_names,
+        validate_unique_clock_names,
+    ];
 
     for validation_fn in validation_fns {
         if let Err(err_msg) = validation_fn(ta) {
@@ -59,6 +67,86 @@ fn validate_at_least_one_loc(ta: &TimedAutomaton) -> ValidationFnResult {
         return Err(String::from("The TA does not have any locations."));
     }
     Ok(())
+}
+
+fn validate_all_invariants_downward_closed(ta: &TimedAutomaton) -> ValidationFnResult {
+    let mut violating_locs = Vec::new();
+
+    'outer: for location in ta.locations() {
+        if let Some(invariant) = location.invariant() {
+            for clause in invariant.clauses() {
+                if clause.op() != ClockComparator::LEQ && clause.op() != LESSER {
+                    violating_locs.push(location.name().clone());
+                    continue 'outer;
+                }
+            }
+        }
+    }
+
+    if violating_locs.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "The invariants of some locations are not downward closed: {}.",
+        violating_locs.join(", ")
+    ))
+}
+
+fn validate_highest_constant(ta: &TimedAutomaton) -> ValidationFnResult {
+    let k = ta.find_highest_constant_in_any_clause();
+    if k <= MAX_ALLOWED_CONSTANT_IN_TA {
+        return Ok(());
+    }
+    Err(format!(
+        "Highest allowed constant for right-hand side of clauses is {}.",
+        MAX_ALLOWED_CONSTANT_IN_TA
+    ))
+}
+
+fn validate_unique_location_names(ta: &TimedAutomaton) -> ValidationFnResult {
+    let mut name_count = HashMap::new();
+    for location in ta.locations() {
+        let count = name_count.entry(location.name()).or_insert(0);
+        *count += 1;
+    }
+
+    let mut duplicate_names = Vec::new();
+    for (loc_name, count) in name_count {
+        if count > 1 {
+            duplicate_names.push(loc_name.clone());
+        }
+    }
+
+    if duplicate_names.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "Some location names are not unique: {}.",
+        duplicate_names.join(", ")
+    ))
+}
+
+fn validate_unique_clock_names(ta: &TimedAutomaton) -> ValidationFnResult {
+    let mut name_count = HashMap::new();
+    for clock in ta.clocks() {
+        let count = name_count.entry(clock.name()).or_insert(0);
+        *count += 1;
+    }
+
+    let mut duplicate_names = Vec::new();
+    for (clock_name, count) in name_count {
+        if count > 1 {
+            duplicate_names.push(clock_name.clone());
+        }
+    }
+
+    if duplicate_names.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "Some clock names are not unique: {}.",
+        duplicate_names.join(", ")
+    ))
 }
 
 #[cfg(test)]
@@ -144,6 +232,130 @@ mod tests {
         match result {
             Err(msgs) => {
                 assert!(msgs.contains(&String::from("The TA does not have any locations.")))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_input_ta_returns_err_when_invariants_not_downward_closed() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+
+        let clause_not_dw_closed = Clause::new(&clock, ClockComparator::GREATER, 42);
+        let cc_not_dw_closed = ClockConstraint::new(Box::from(vec![clause_not_dw_closed]));
+        let clause_dw_closed = Clause::new(&clock, ClockComparator::LEQ, 42);
+        let cc_dw_closed = ClockConstraint::new(Box::from(vec![clause_dw_closed]));
+
+        let loc0 = Location::new("zero", true, Some(cc_not_dw_closed.clone()));
+        let loc1 = Location::new("one", false, Some(cc_dw_closed));
+        let loc2 = Location::new("two", false, None);
+        let loc3 = Location::new("three", false, Some(cc_not_dw_closed));
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc0.clone(), loc1, loc2, loc3.clone()]),
+            Box::from(clocks),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&String::from(&format!(
+                    "The invariants of some locations are not downward closed: {}, {}.",
+                    loc0.name(),
+                    loc3.name()
+                ))));
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_input_ta_returns_err_when_highest_used_k_in_ta_is_greater_than_allowed() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+
+        let clause = Clause::new(
+            &clock,
+            ClockComparator::LEQ,
+            MAX_ALLOWED_CONSTANT_IN_TA as u32 + 1,
+        );
+        let cc = ClockConstraint::new(Box::from(vec![clause]));
+
+        let loc = Location::new("zero", true, Some(cc));
+
+        let ta = TimedAutomaton::new(Box::from(vec![loc]), Box::from(clocks), Box::from(vec![]));
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Highest allowed constant for right-hand side of clauses is {}.",
+                    MAX_ALLOWED_CONSTANT_IN_TA
+                )))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_input_ta_returns_err_when_location_names_are_not_unique() {
+        // given
+        let dupl_0 = Location::new("duplicate", true, None);
+        let dupl_1 = Location::new("duplicate", false, None);
+        let unique = Location::new("unique", false, None);
+        let ta = TimedAutomaton::new(
+            Box::from(vec![dupl_0.clone(), dupl_1, unique]),
+            Box::from(vec![]),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Some location names are not unique: {}.",
+                    dupl_0.name()
+                )))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_input_ta_returns_err_when_clock_names_are_not_unique() {
+        // given
+        let dupl_0 = Clock::new("duplicate");
+        let dupl_1 = Clock::new("duplicate");
+        let unique = Clock::new("unique");
+        let ta = TimedAutomaton::new(
+            Box::from(vec![]),
+            Box::from(vec![dupl_0.clone(), dupl_1, unique]),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Some clock names are not unique: {}.",
+                    dupl_0.name()
+                )))
             }
             _ => panic!("Expected an Err, got an Ok"),
         }
