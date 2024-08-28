@@ -1,6 +1,6 @@
 [package]
 name = "timed-automata-analyzer"
-version = "0.1.0"
+version = "0.9.0"
 authors = ["luth1um"]
 description = "An analyzer for Timed Automata written in Rust"
 license = "MIT"
