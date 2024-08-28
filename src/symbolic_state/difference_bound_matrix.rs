@@ -87,7 +87,8 @@ impl DifferenceBoundMatrix {
     /// Panics if the set of all clocks is not sorted by name. This is to ensure that the DBM
     /// entries are always set to the correct field.
     pub fn and(&mut self, cc: &ClockConstraint, all_clocks_sorted: &Vec<Clock>) -> Option<()> {
-        // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
+        panic_if_clocks_not_sorted(all_clocks_sorted);
+
         for clause in cc.clauses() {
             self.and_clause(clause, all_clocks_sorted)?;
         }
@@ -178,7 +179,8 @@ impl DifferenceBoundMatrix {
     /// Panics if the set of all clocks is not sorted by name. This is to ensure that the DBM
     /// entries are always set to the correct field.
     pub fn reset(&mut self, reset: &Vec<Clock>, all_clocks_sorted: &Vec<Clock>) {
-        // TODO: panic if all_clocks_sorted is not sorted by clock name (or maybe at higher level?)
+        panic_if_clocks_not_sorted(all_clocks_sorted);
+
         let leq_0_enc = encode_dbm_entry(0, ClockComparator::LEQ);
         for clock in reset {
             let pos_in_dbm = find_clock_pos_in_dbm(clock, all_clocks_sorted);
@@ -287,6 +289,13 @@ fn find_clock_pos_in_dbm(clock: &Clock, all_clocks: &Vec<Clock>) -> usize {
         }
     }
     panic!("Clock {} not contained in {:?}", clock, all_clocks);
+}
+
+fn panic_if_clocks_not_sorted(clocks: &Vec<Clock>) {
+    let is_sorted = clocks.windows(2).all(|cw| cw[0].name() <= cw[1].name());
+    if !is_sorted {
+        panic!("Clocks are not sorted by name: {:?}", clocks);
+    }
 }
 
 /// Panics if the difference of any clock to itself (i.e., all entries `(i, i)`) is not `(0, <=)`.
@@ -1159,6 +1168,43 @@ mod tests {
 
         // when / then
         find_clock_pos_in_dbm(&clock, &clocks);
+    }
+
+    #[test]
+    fn panic_if_clocks_not_sorted_does_not_panic_when_clocks_are_sorted() {
+        // given
+        let clocks = vec![Clock::new("a"), Clock::new("bbb"), Clock::new("z")];
+
+        // when / then
+        panic_if_clocks_not_sorted(&clocks); // should not panic
+    }
+
+    #[test]
+    fn panic_if_clocks_not_sorted_does_not_panic_when_clocks_are_empty() {
+        // given
+        let clocks = vec![];
+
+        // when / then
+        panic_if_clocks_not_sorted(&clocks); // should not panic
+    }
+
+    #[test]
+    fn panic_if_clocks_not_sorted_does_not_panic_when_exactly_one_clock() {
+        // given
+        let clocks = vec![Clock::new("a")];
+
+        // when / then
+        panic_if_clocks_not_sorted(&clocks); // should not panic
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_if_clocks_not_sorted_panics_when_clocks_are_not_sorted() {
+        // given
+        let clocks = vec![Clock::new("a"), Clock::new("z"), Clock::new("b")];
+
+        // when / then
+        panic_if_clocks_not_sorted(&clocks);
     }
 
     #[test]
