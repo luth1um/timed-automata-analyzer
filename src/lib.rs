@@ -12,7 +12,7 @@ mod validation;
 pub fn find_unreachable_locations(ta: TimedAutomaton) -> Vec<String> {
     if let Err(msgs) = validate_input_ta(&ta) {
         wasm_bindgen::throw_str(&format!(
-            "The input TA failed some validation checks: {}",
+            "The input TA failed some validation checks. {}",
             msgs.join(" ")
         ));
     }

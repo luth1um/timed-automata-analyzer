@@ -1,10 +1,10 @@
-# Analyzer for Timed Automata
+# ⏰ Analyzer for Timed Automata
 
 This project provides an analyzer for Timed Automata.
 The analyzer is written in Rust and compiled to WebAssembly to offer a fast and efficient tool to implement analyses for websites.
 Currently, the analyzer offers functionality to find unreachable locations in a given TA.
 
-## Getting Started
+## 🚀 Getting Started
 
 To use the tool in your JavaScript/TypeScript project, simply install the package `timed-automata-analyzer` with your favorite package manager.
 Then map your Timed Automata into the TA model provided by the analyzer.
@@ -15,7 +15,7 @@ If all locations are reachable, the array is empty.
 Note that the analyzer validates the input TA before starting the analysis.
 In case of any validation issues (e.g., missing initial location), `findUnreachableLocations(ta)` throws an error. 
 
-## Developing the Tool
+## 🦀 Developing the Tool
 
 In case you want to contribute to the tool or fork the repository, only few steps are necessary:
 - As a first step, you need to install Rust.
@@ -27,7 +27,7 @@ In case you want to contribute to the tool or fork the repository, only few step
   To run the linters, execute `cargo check` and `cargo clippy`, respectively.
 - For further information on compiling Rust to WebAssembly, see the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/WebAssembly/Rust_to_Wasm).
 
-## Additional Information
+## 💡 Additional Information
 
 - Most of the algorithms for checking reachability are based on the paper [Timed Automata: Semantics, Algorithms and Tools](https://doi.org/10.1007/978-3-540-27755-2_3).
 - In case you want to see the analyzer in action, I built a React app for modeling and analyzing Timed Automata.
