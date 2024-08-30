@@ -183,7 +183,7 @@ jobs:
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
 
-      - name: Publish to npm with provenance
+      - name: Publish to npm with provenance attestation
         run: |
           cd pkg
           npm config set provenance true
