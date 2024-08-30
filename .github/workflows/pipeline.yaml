@@ -43,6 +43,9 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
       - name: Install dependencies
         run: cargo build
 
