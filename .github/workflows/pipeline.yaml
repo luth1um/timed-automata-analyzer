@@ -186,6 +186,6 @@ jobs:
         run: |
           cd pkg
           npm config set provenance true
-          npm publish
+          npm publish --loglevel verbose
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
