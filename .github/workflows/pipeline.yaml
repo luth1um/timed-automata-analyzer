@@ -43,9 +43,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
-
       - name: Install dependencies
         run: cargo build
 
@@ -116,6 +113,9 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
 
@@ -185,6 +185,9 @@ jobs:
           path: |
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
 
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
