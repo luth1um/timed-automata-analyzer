@@ -160,6 +160,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -186,6 +187,6 @@ jobs:
         run: |
           cd pkg
           npm config set provenance true
-          npm publish --loglevel verbose
+          npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
