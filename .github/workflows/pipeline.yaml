@@ -156,6 +156,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -178,12 +183,9 @@ jobs:
         run: wasm-pack build --target bundler
 
       - name: Publish to npm with provenance
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd pkg
           npm config set provenance true
           npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
