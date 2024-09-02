@@ -534,13 +534,12 @@ mod tests {
         let loc = Location::new("loc", true, None);
 
         let unknown_source = "unknownSource";
-        let unknown_target = "unknownTarget";
         let sw = Switch::new(
             &Location::new(unknown_source, false, None),
             None,
             "action",
             Box::from(vec![]),
-            &Location::new(unknown_target, false, None),
+            &Location::new(&loc.name().clone(), false, None),
         );
 
         let ta = TimedAutomaton::new(
@@ -557,7 +556,7 @@ mod tests {
             Err(msgs) => {
                 assert!(msgs.contains(&format!(
                     "Some switches use unknown locations as source and/or target: {} (specified and valid: {}).",
-                    vec![unknown_source, unknown_target].join(", "),
+                    unknown_source,
                     loc.name()
                 )))
             }
