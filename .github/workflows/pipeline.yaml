@@ -40,8 +40,22 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Cache wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: ${{ runner.os }}-wasm-pack-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install dependencies
         run: cargo build
+
+      - name: Install wasm-pack
+        run: |
+          if [[ ! -f ~/.cargo/bin/wasm-pack ]]; then
+            cargo install wasm-pack
+          else
+            echo "wasm-pack is already installed"
+          fi
 
   # Check linting and formatting
   static-analysis:
@@ -104,8 +118,11 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
+      - name: Cache wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: ${{ runner.os }}-wasm-pack-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
@@ -177,8 +194,11 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
+      - name: Cache wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: ${{ runner.os }}-wasm-pack-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
