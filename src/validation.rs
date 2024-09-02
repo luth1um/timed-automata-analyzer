@@ -1,21 +1,19 @@
 use crate::ta::clock_constraint::clause::ClockComparator;
 use crate::ta::clock_constraint::clause::ClockComparator::LESSER;
+use crate::ta::location::Location;
+use crate::ta::switch::Switch;
 use crate::ta::TimedAutomaton;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 type ValidationFnResult = Result<(), String>;
 type ValidationFn = fn(&TimedAutomaton) -> ValidationFnResult;
 
-/// The highest allowed constant is validated as the type for the rhs in clauses is `u32`. However,
-/// for analysis we need `i32`. Additionally, we need one bit for the encoding of DBM entries and
-/// another bit to accommodate for temporary values before k-normalization.
+/// The highest allowed constant is validated as the type for the rhs in clauses is `u32`, but for
+/// analysis we need `i32`. Additionally, we need one bit for the encoding of DBM entries and
+/// another bit to accommodate for temporary values before applying k-normalization.
 const MAX_ALLOWED_CONSTANT_IN_TA: i32 = (i32::MAX >> 2) - 2;
 
 pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
-    // TODO: add more input validations and write tests for validations
-    // - all clocks used in invariants and guards are contained in set of clocks
-    // - all locations used in guards (source and target) are contained in set of locations
-
     let mut error_msgs: Vec<String> = Vec::new();
     let validation_fns: Vec<ValidationFn> = vec![
         validate_init_loc_count,
@@ -24,6 +22,9 @@ pub fn validate_input_ta(ta: &TimedAutomaton) -> Result<(), Vec<String>> {
         validate_highest_constant,
         validate_unique_location_names,
         validate_unique_clock_names,
+        validate_clocks_in_invariants_contained_in_clocks,
+        validate_clocks_in_guards_contained_in_clocks,
+        validate_locs_of_switches_contained_in_locs,
     ];
 
     for validation_fn in validation_fns {
@@ -146,6 +147,101 @@ fn validate_unique_clock_names(ta: &TimedAutomaton) -> ValidationFnResult {
     Err(format!(
         "Some clock names are not unique: {}.",
         duplicate_names.join(", ")
+    ))
+}
+
+fn validate_clocks_in_invariants_contained_in_clocks(ta: &TimedAutomaton) -> ValidationFnResult {
+    let mut violating_locs: Vec<&Location> = Vec::new();
+
+    for location in ta.locations() {
+        if let Some(invariant) = location.invariant() {
+            for clause in invariant.clauses() {
+                if !ta.clocks().contains(clause.lhs()) {
+                    violating_locs.push(location);
+                }
+            }
+        }
+    }
+
+    if violating_locs.is_empty() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Some locations have invariants with clocks not being part of the set of clocks {{{}}}: {}.",
+        ta.clocks().iter().map(|c| c.name().clone()).collect::<Vec<String>>().join(", "),
+        violating_locs
+            .iter()
+            .map(|loc| loc.name().clone())
+            .collect::<Vec<String>>()
+            .join(", ")
+    ))
+}
+
+fn validate_clocks_in_guards_contained_in_clocks(ta: &TimedAutomaton) -> ValidationFnResult {
+    let mut violating_switches: Vec<&Switch> = Vec::new();
+
+    for sw in ta.switches() {
+        if let Some(guard) = sw.guard() {
+            for clause in guard.clauses() {
+                if !ta.clocks().contains(clause.lhs()) {
+                    violating_switches.push(sw);
+                }
+            }
+        }
+    }
+
+    if violating_switches.is_empty() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Some switches have guards with clocks not being part of the set of clocks {{{}}}: {}.",
+        ta.clocks()
+            .iter()
+            .map(|c| c.name().clone())
+            .collect::<Vec<String>>()
+            .join(", "),
+        violating_switches
+            .iter()
+            .map(|sw| format!(
+                "({}, {}, {})",
+                sw.source().name().clone(),
+                sw.action().clone(),
+                sw.target().name().clone()
+            ))
+            .collect::<Vec<String>>()
+            .join(", ")
+    ))
+}
+
+fn validate_locs_of_switches_contained_in_locs(ta: &TimedAutomaton) -> ValidationFnResult {
+    let valid_loc_names = ta
+        .locations()
+        .iter()
+        .map(|loc| loc.name().clone())
+        .collect::<Vec<String>>();
+
+    let violating_sw_loc_names = ta
+        .switches()
+        .iter()
+        .flat_map(|sw| vec![sw.source().name(), sw.target().name()])
+        .filter(|name| !valid_loc_names.contains(name))
+        .collect::<Vec<&String>>();
+
+    if violating_sw_loc_names.is_empty() {
+        return Ok(());
+    }
+
+    let mut unique_loc_names: HashSet<String> = HashSet::new();
+    for name in violating_sw_loc_names {
+        unique_loc_names.insert(name.clone());
+    }
+
+    Err(format!(
+        "Some switches use unknown locations as source and/or target: {} (specified and valid: {}).",
+        unique_loc_names.iter().cloned().collect::<Vec<String>>().join(", "),
+        valid_loc_names.join(", ")
     ))
 }
 
@@ -355,6 +451,114 @@ mod tests {
                 assert!(msgs.contains(&format!(
                     "Some clock names are not unique: {}.",
                     dupl_0.name()
+                )))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_clocks_in_invariants_contained_in_clocks_returns_err_when_unknown_clocks_used() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let unknown_clock = Clock::new(&(clock.name().clone() + "unknown"));
+
+        let clause = Clause::new(&unknown_clock, ClockComparator::LEQ, 42);
+        let cc = ClockConstraint::new(Box::from(vec![clause]));
+
+        let loc = Location::new("violating", true, Some(cc));
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc.clone()]),
+            Box::from(clocks),
+            Box::from(vec![]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Some locations have invariants with clocks not being part of the set of clocks {{{}}}: {}.",
+                    clock.name(),
+                    loc.name()
+                )))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_clocks_in_guards_contained_in_clocks_returns_err_when_unknown_clocks_used() {
+        // given
+        let clock = Clock::new("x");
+        let clocks = vec![clock.clone()];
+        let unknown_clock = Clock::new(&(clock.name().clone() + "unknown"));
+
+        let clause = Clause::new(&unknown_clock, ClockComparator::LEQ, 42);
+        let cc = ClockConstraint::new(Box::from(vec![clause]));
+
+        let loc = Location::new("loc", true, None);
+        let sw = Switch::new(&loc, Some(cc), "a", Box::from(vec![]), &loc);
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc]),
+            Box::from(clocks),
+            Box::from(vec![sw.clone()]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Some switches have guards with clocks not being part of the set of clocks {{{}}}: ({}, {}, {}).",
+                    clock.name(),
+                    sw.source().name(),
+                    sw.action(),
+                    sw.target().name()
+                )))
+            }
+            _ => panic!("Expected an Err, got an Ok"),
+        }
+    }
+
+    #[test]
+    fn validate_locs_of_switches_contained_in_locs_returns_err_when_unknown_loc_name() {
+        // given
+        let loc = Location::new("loc", true, None);
+
+        let unknown_source = "unknownSource";
+        let unknown_target = "unknownTarget";
+        let sw = Switch::new(
+            &Location::new(unknown_source, false, None),
+            None,
+            "action",
+            Box::from(vec![]),
+            &Location::new(unknown_target, false, None),
+        );
+
+        let ta = TimedAutomaton::new(
+            Box::from(vec![loc.clone()]),
+            Box::from(vec![]),
+            Box::from(vec![sw]),
+        );
+
+        // when
+        let result = validate_input_ta(&ta);
+
+        // then
+        match result {
+            Err(msgs) => {
+                assert!(msgs.contains(&format!(
+                    "Some switches use unknown locations as source and/or target: {} (specified and valid: {}).",
+                    vec![unknown_source, unknown_target].join(", "),
+                    loc.name()
                 )))
             }
             _ => panic!("Expected an Err, got an Ok"),
