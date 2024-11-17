@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "timed-automata-analyzer"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "wasm-bindgen",
 ]
