@@ -1,6 +1,6 @@
 use crate::ta::clock::Clock;
-use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
 use crate::ta::clock_constraint::ClockConstraint;
+use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
 use std::cmp;
 
 const UNBOUNDED_ENTRY: i32 = i32::MAX;

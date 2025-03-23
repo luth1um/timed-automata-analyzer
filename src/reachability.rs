@@ -1,7 +1,7 @@
-use crate::symbolic_state::difference_bound_matrix::DifferenceBoundMatrix;
 use crate::symbolic_state::SymbolicState;
-use crate::ta::clock::Clock;
+use crate::symbolic_state::difference_bound_matrix::DifferenceBoundMatrix;
 use crate::ta::TimedAutomaton;
+use crate::ta::clock::Clock;
 use std::collections::HashSet;
 
 pub fn find_unreachable_locations(ta: &TimedAutomaton) -> Vec<String> {
@@ -99,8 +99,8 @@ fn next_states_for_switches(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::clock_constraint::ClockConstraint;
+    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::location::Location;
     use crate::ta::switch::Switch;
 

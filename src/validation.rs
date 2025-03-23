@@ -1,8 +1,8 @@
+use crate::ta::TimedAutomaton;
 use crate::ta::clock_constraint::clause::ClockComparator;
 use crate::ta::clock_constraint::clause::ClockComparator::LESSER;
 use crate::ta::location::Location;
 use crate::ta::switch::Switch;
-use crate::ta::TimedAutomaton;
 use std::collections::{HashMap, HashSet};
 
 type ValidationFnResult = Result<(), String>;
@@ -169,7 +169,11 @@ fn validate_clocks_in_invariants_contained_in_clocks(ta: &TimedAutomaton) -> Val
 
     Err(format!(
         "Some locations have invariants with clocks not being part of the set of clocks {{{}}}: {}.",
-        ta.clocks().iter().map(|c| c.name().clone()).collect::<Vec<String>>().join(", "),
+        ta.clocks()
+            .iter()
+            .map(|c| c.name().clone())
+            .collect::<Vec<String>>()
+            .join(", "),
         violating_locs
             .iter()
             .map(|loc| loc.name().clone())
@@ -240,7 +244,11 @@ fn validate_locs_of_switches_contained_in_locs(ta: &TimedAutomaton) -> Validatio
 
     Err(format!(
         "Some switches use unknown locations as source and/or target: {} (specified and valid: {}).",
-        unique_loc_names.iter().cloned().collect::<Vec<String>>().join(", "),
+        unique_loc_names
+            .iter()
+            .cloned()
+            .collect::<Vec<String>>()
+            .join(", "),
         valid_loc_names.join(", ")
     ))
 }
@@ -249,8 +257,8 @@ fn validate_locs_of_switches_contained_in_locs(ta: &TimedAutomaton) -> Validatio
 mod tests {
     use super::*;
     use crate::ta::clock::Clock;
-    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::clock_constraint::ClockConstraint;
+    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::location::Location;
     use crate::ta::switch::Switch;
 

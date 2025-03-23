@@ -111,8 +111,8 @@ impl PartialEq<Self> for TimedAutomaton {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
     use crate::ta::clock_constraint::ClockConstraint;
+    use crate::ta::clock_constraint::clause::{Clause, ClockComparator};
 
     #[test]
     fn new_returns_correct_ta_when_called() {
