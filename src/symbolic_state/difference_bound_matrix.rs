@@ -288,13 +288,13 @@ fn find_clock_pos_in_dbm(clock: &Clock, all_clocks: &Vec<Clock>) -> usize {
             return i + 1; // + 1 because of special clock "zero" in DBMs
         }
     }
-    panic!("Clock {} not contained in {:?}", clock, all_clocks);
+    panic!("Clock {clock} not contained in {all_clocks:?}");
 }
 
 fn panic_if_clocks_not_sorted(clocks: &Vec<Clock>) {
     let is_sorted = clocks.windows(2).all(|cw| cw[0].name() <= cw[1].name());
     if !is_sorted {
-        panic!("Clocks are not sorted by name: {:?}", clocks);
+        panic!("Clocks are not sorted by name: {clocks:?}");
     }
 }
 
@@ -310,10 +310,7 @@ fn panic_if_clock_diffs_to_self(dbm: &DifferenceBoundMatrix) {
                 ClockComparator::GEQ => ">=",
                 ClockComparator::GREATER => ">",
             };
-            panic!(
-                "Entry at ({}, {}) should be (0, <=), but entry is ({}, {})",
-                i, i, val, comp_str
-            );
+            panic!("Entry at ({i}, {i}) should be (0, <=), but entry is ({val}, {comp_str})");
         }
     }
 }

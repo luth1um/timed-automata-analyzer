@@ -56,8 +56,7 @@ impl TimedAutomaton {
             .collect();
         if marked_init.len() > 1 {
             panic!(
-                "Found multiple initial locations ({:?}) although there should only be 1",
-                marked_init
+                "Found multiple initial locations ({marked_init:?}) although there should only be 1"
             );
         }
         match marked_init.first() {

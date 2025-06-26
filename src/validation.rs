@@ -99,8 +99,7 @@ fn validate_highest_constant(ta: &TimedAutomaton) -> ValidationFnResult {
         return Ok(());
     }
     Err(format!(
-        "Highest allowed constant for right-hand side of clauses is {}.",
-        MAX_ALLOWED_CONSTANT_IN_TA
+        "Highest allowed constant for right-hand side of clauses is {MAX_ALLOWED_CONSTANT_IN_TA}."
     ))
 }
 
