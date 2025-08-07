@@ -65,27 +65,27 @@ fn next_states_for_switches(
             let mut next_zone = current_state.zone().clone();
 
             // operations for switch
-            if let Some(guard) = sw.guard() {
-                if next_zone.and(guard, all_clocks_sorted).is_none() {
-                    // result unsatisfiable
-                    return;
-                }
+            if let Some(guard) = sw.guard()
+                && next_zone.and(guard, all_clocks_sorted).is_none()
+            {
+                // result unsatisfiable
+                return;
             }
             next_zone.reset(sw.reset(), all_clocks_sorted);
-            if let Some(invariant) = sw.target().invariant() {
-                if next_zone.and(invariant, all_clocks_sorted).is_none() {
-                    // result unsatisfiable
-                    return;
-                }
+            if let Some(invariant) = sw.target().invariant()
+                && next_zone.and(invariant, all_clocks_sorted).is_none()
+            {
+                // result unsatisfiable
+                return;
             }
 
             // operations for target location
             next_zone.up();
-            if let Some(invariant) = sw.target().invariant() {
-                if next_zone.and(invariant, all_clocks_sorted).is_none() {
-                    // result unsatisfiable
-                    return;
-                }
+            if let Some(invariant) = sw.target().invariant()
+                && next_zone.and(invariant, all_clocks_sorted).is_none()
+            {
+                // result unsatisfiable
+                return;
             }
 
             next_zone.k_norm(highest_constant_in_ta);
