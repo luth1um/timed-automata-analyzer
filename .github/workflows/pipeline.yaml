@@ -69,6 +69,9 @@ jobs:
           path: ~/.cargo/bin/wasm-pack
           key: ${{ runner.os }}-wasm-pack-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install wasm-pack
+        run: cargo install wasm-pack # does nothing if wasm-pack is available through cache
+
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
 
