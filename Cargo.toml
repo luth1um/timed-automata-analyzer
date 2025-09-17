@@ -16,4 +16,4 @@ lto = true
 codegen-units = 1
 
 [dependencies]
-wasm-bindgen = "0.2.101"
+wasm-bindgen = "0.2.103"
