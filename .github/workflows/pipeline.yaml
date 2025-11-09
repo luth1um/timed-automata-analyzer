@@ -9,9 +9,6 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  id-token: write
-
 env:
   NODE_VERSION: "24"
   BUILD_ARTIFACT_NAME: "ta-analyzer-build-output"
@@ -122,6 +119,8 @@ jobs:
       - build
       - test
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     if: github.ref == 'refs/heads/release'
     concurrency:
       group: publish_npm
