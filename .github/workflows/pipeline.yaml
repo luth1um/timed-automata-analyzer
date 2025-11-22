@@ -25,11 +25,8 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable # "stable" sets up the latest stable Rust version
-
-      - name: Install rustfmt and clippy
-        run: |
-          rustup component add rustfmt
-          rustup component add clippy
+        with:
+          components: rustfmt, clippy
 
       - name: Cache Cargo registry
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4.3.0
