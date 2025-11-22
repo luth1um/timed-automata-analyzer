@@ -1,3 +1,4 @@
 /target
 /.idea
 /pkg
+/wasm_test/node_modules

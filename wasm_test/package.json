@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "format": "prettier --write \"./**/*.{js,json,md,ts,yaml,yml}\"",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "vite-plugin-wasm": "3.5.0",
+    "vitest": "4.0.12"
+  }
+}

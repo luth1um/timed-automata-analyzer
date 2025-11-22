@@ -27,6 +27,10 @@ In case you want to contribute to the tool or fork the repository, only few step
   To run the linters, execute `cargo check` and `cargo clippy`, respectively.
 - For further information on compiling Rust to WebAssembly, see the [MDN Web Docs](https://developer.mozilla.org/en-US/docs/WebAssembly/Rust_to_Wasm).
 
+In addition to the Rust code for creating the Wasm binary, this project also contains a tiny TypeScript project in the folder `wasm_test`.
+The purpose of this Node project is to check whether the generated Wasm binary and the generate glue code work as intended (i.e., the Wasm binary can in principal be accessed).
+To execute these tests, just install Node and npm on your machine, open the `wasm_test` folder, and run `npm install` and `npm test`.
+
 ## 💡 Additional Information
 
 - Most of the algorithms for checking reachability are based on the paper [Timed Automata: Semantics, Algorithms and Tools](https://doi.org/10.1007/978-3-540-27755-2_3).
