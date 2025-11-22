@@ -8,6 +8,6 @@
     "prettier": "3.6.2",
     "typescript": "5.9.3",
     "vite-plugin-wasm": "3.5.0",
-    "vitest": "4.0.12"
+    "vitest": "4.0.13"
   }
 }
