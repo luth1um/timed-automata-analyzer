@@ -13,6 +13,7 @@ env:
   NODE_VERSION: "24"
   BUILD_ARTIFACT_NAME: "ta-analyzer-build-output"
   BUILD_ARTIFACT_FOLDER: "pkg"
+  WASM_TEST_FOLDER: "wasm_test"
 
 jobs:
   # Check linting and formatting
@@ -47,21 +48,18 @@ jobs:
       - name: Linting with Clippy
         run: cargo clippy -- -D warnings
 
-      - name: Switch to directory for testing the wasm output
-        run: cd wasm_test
-
       - name: Set up Node
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 #v6.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: "wasm_test/package-lock.json"
-
-      - name: Install dependencies
-        run: npm ci
+          cache-dependency-path: "${{ env.WASM_TEST_FOLDER }}/package-lock.json"
 
       - name: Check formatting of the TypeScript test code
-        run: npx prettier --check .
+        run: |
+          cd "${{ env.WASM_TEST_FOLDER }}"
+          npm ci
+          npx prettier --check .
 
   # Build the project
   build:
@@ -141,7 +139,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: "wasm_test/package-lock.json"
+          cache-dependency-path: "${{ env.WASM_TEST_FOLDER }}/package-lock.json"
 
       - name: Download build artifact
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 #v6.0.0
@@ -154,14 +152,11 @@ jobs:
           echo "Contents of ${{ env.BUILD_ARTIFACT_FOLDER }}:"
           ls -R "${{ env.BUILD_ARTIFACT_FOLDER }}"
 
-      - name: Switch to directory for testing the wasm output
-        run: cd wasm_test
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Run test for generated wasm files
-        run: npm run test
+        run: |
+          cd "${{ env.WASM_TEST_FOLDER }}"
+          npm ci
+          npm run test
 
   # Deploy to npmjs.com
   publish:
