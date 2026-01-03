@@ -3,13 +3,13 @@ updates:
   - package-ecosystem: 'cargo'
     directory: '/'
     schedule:
-      interval: 'monthly'
+      interval: 'weekly'
   - package-ecosystem: npm
     directory: '/wasm_test'
     schedule:
-      interval: 'monthly'
+      interval: 'weekly'
     open-pull-requests-limit: 10
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
-      interval: 'quarterly'
+      interval: 'weekly'
