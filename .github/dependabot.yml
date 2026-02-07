@@ -5,17 +5,17 @@ updates:
     schedule:
       interval: 'weekly'
     cooldown:
-      default-days: 3
+      default-days: 7
   - package-ecosystem: npm
     directory: '/wasm_test'
     schedule:
       interval: 'weekly'
     cooldown:
-      default-days: 3
+      default-days: 7
     open-pull-requests-limit: 10
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
       interval: 'weekly'
     cooldown:
-      default-days: 3
+      default-days: 7
