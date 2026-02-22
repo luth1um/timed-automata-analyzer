@@ -1,5 +1,5 @@
-use std::time::Duration;
 use criterion::{Criterion, criterion_group, criterion_main};
+use std::time::Duration;
 use timed_automata_analyzer::ta::TimedAutomaton;
 use timed_automata_analyzer::ta::clock::Clock;
 use timed_automata_analyzer::ta::clock_constraint::ClockConstraint;
@@ -8,9 +8,7 @@ use timed_automata_analyzer::ta::location::Location;
 use timed_automata_analyzer::ta::switch::Switch;
 
 // Benchmarks
-fn bench_find_unreachable_locations(
-    c: &mut Criterion,
-) {
+fn bench_find_unreachable_locations(c: &mut Criterion) {
     c.bench_function("reachability 5k states", |b| {
         b.iter(|| {
             // setup
