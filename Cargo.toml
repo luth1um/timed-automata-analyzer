@@ -21,7 +21,7 @@ lto = true
 codegen-units = 1
 
 [dependencies]
-wasm-bindgen = "0.2.108"
+wasm-bindgen = "0.2.114"
 
 [dev-dependencies]
 criterion = "0.8.2"
