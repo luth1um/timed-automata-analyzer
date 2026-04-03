@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+
 import { findUnreachableLocations, Location, Switch, TimedAutomaton } from "../../pkg";
 
 describe("The analyzer wasm", () => {
