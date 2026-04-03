@@ -57,7 +57,7 @@ jobs:
         run: |
           cd "${{ env.WASM_TEST_FOLDER }}"
           npm ci
-          npx prettier --check .
+          npm run format:check
 
   # Build the project
   build:

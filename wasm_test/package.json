@@ -1,11 +1,12 @@
 {
   "private": true,
   "scripts": {
-    "format": "prettier --write \"./**/*.{js,json,md,ts,yaml,yml}\"",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "test": "vitest run"
   },
   "devDependencies": {
-    "prettier": "3.8.1",
+    "oxfmt": "0.43.0",
     "typescript": "6.0.2",
     "vite-plugin-wasm": "3.6.0",
     "vitest": "4.1.2"
