@@ -9,6 +9,8 @@ on:
       - main
   workflow_dispatch:
 
+permissions: {}
+
 env:
   NODE_VERSION: "24"
   BUILD_ARTIFACT_NAME: "ta-analyzer-build-output"
