@@ -6,7 +6,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "oxfmt": "0.43.0",
+    "oxfmt": "0.44.0",
     "typescript": "6.0.2",
     "vite-plugin-wasm": "3.6.0",
     "vitest": "4.1.4"
