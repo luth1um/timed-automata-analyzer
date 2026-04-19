@@ -18,7 +18,7 @@ updates:
     directory: '/'
     groups:
       patterns:
-        - 'github/codeql-action*'
+        - 'github/codeql-action'
     schedule:
       interval: 'weekly'
     cooldown:
