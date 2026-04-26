@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "oxfmt": "0.45.0",
-    "typescript": "6.0.2",
+    "typescript": "6.0.3",
     "vite-plugin-wasm": "3.6.0",
     "vitest": "4.1.4"
   }
