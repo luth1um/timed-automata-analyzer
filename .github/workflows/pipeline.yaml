@@ -86,12 +86,7 @@ jobs:
           key: ${{ runner.os }}-wasm-pack-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install wasm-pack
-        run: |
-          if [[ ! -f ~/.cargo/bin/wasm-pack ]]; then
-            cargo install wasm-pack
-          else
-            echo "wasm-pack is already installed"
-          fi
+        run: cargo install wasm-pack
 
       - name: Build the project with wasm-pack
         run: wasm-pack build --target bundler
