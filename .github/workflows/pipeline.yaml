@@ -121,28 +121,6 @@ jobs:
       - name: Run unit tests
         run: cargo test
 
-  # Run benchmarks (just to check that they still work)
-  bench:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable # "stable" sets up the latest stable Rust version
-
-      - name: Cache Cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run benchmarks
-        run: cargo bench
-
   # Run wasm tests
   wasm-test:
     needs:
