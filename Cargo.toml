@@ -8,7 +8,7 @@ repository = "https://github.com/luth1um/timed-automata-analyzer"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [profile.release]
 opt-level = 3
