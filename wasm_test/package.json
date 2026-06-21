@@ -6,10 +6,10 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "oxfmt": "0.52.0",
+    "oxfmt": "0.53.0",
     "typescript": "6.0.3",
     "vite-plugin-wasm": "3.6.0",
-    "vitest": "4.1.7"
+    "vitest": "4.1.8"
   },
   "allowScripts": {
     "fsevents@2.3.3": true
