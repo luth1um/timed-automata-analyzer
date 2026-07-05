@@ -8,7 +8,7 @@
   "devDependencies": {
     "oxfmt": "0.54.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.9"
   },
   "allowScripts": {
     "fsevents@2.3.3": true
