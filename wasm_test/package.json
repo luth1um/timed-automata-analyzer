@@ -6,7 +6,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "oxfmt": "0.54.0",
+    "oxfmt": "0.55.0",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
   },
