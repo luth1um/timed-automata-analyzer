@@ -38,6 +38,6 @@ describe("The analyzer wasm", () => {
     const checkFn = () => findUnreachableLocations(ta);
 
     // when / then
-    expect(checkFn).toThrowError("The input TA failed some validation checks.");
+    expect(checkFn).toThrow("The input TA failed some validation checks.");
   });
 });
