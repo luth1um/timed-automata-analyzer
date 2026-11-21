@@ -16,6 +16,8 @@ env:
   BUILD_ARTIFACT_NAME: "ta-analyzer-build-output"
   BUILD_ARTIFACT_FOLDER: "pkg"
   WASM_TEST_FOLDER: "wasm_test"
+  CARGO_TERM_COLOR: "always"
+  CARGO_BUILD_WARNINGS: "deny"
 
 jobs:
   # Check linting and formatting
